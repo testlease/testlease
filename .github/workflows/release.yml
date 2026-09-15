@@ -48,6 +48,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # setup-node's registry-url writes an .npmrc that reads NODE_AUTH_TOKEN; without it npm
+          # publishes unauthenticated and the registry answers E404 for scoped packages.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           # Provenance requires a public repository; remove this line to publish from a private one.
           NPM_CONFIG_PROVENANCE: true
 
