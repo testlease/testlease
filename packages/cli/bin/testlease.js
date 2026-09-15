@@ -6,7 +6,7 @@ main(process.argv.slice(2)).then(
     process.exitCode = code;
   },
   (err) => {
-    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+    console.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
     process.exitCode = 1;
   },
 );

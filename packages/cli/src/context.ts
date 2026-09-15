@@ -34,7 +34,12 @@ export function defaultCliOwner(env: NodeJS.ProcessEnv): string {
 
 export function createContext(
   opts: GlobalOptions,
-  io: { stdout: NodeJS.WritableStream; stderr: NodeJS.WritableStream; env: NodeJS.ProcessEnv; isTTY: boolean },
+  io: {
+    stdout: NodeJS.WritableStream;
+    stderr: NodeJS.WritableStream;
+    env: NodeJS.ProcessEnv;
+    isTTY: boolean;
+  },
 ): CliContext {
   const color = opts.color ?? (io.isTTY && !io.env.NO_COLOR && io.env.TERM !== 'dumb');
   const out = new Output({ json: opts.json ?? false, color, stdout: io.stdout, stderr: io.stderr });
@@ -47,6 +52,7 @@ export function createContext(
     token,
     owner,
     env: io.env,
-    client: () => new TestLeaseClient({ baseUrl: url, token, owner, userAgent: 'testlease-cli/0.1.0' }),
+    client: () =>
+      new TestLeaseClient({ baseUrl: url, token, owner, userAgent: 'testlease-cli/0.1.0' }),
   };
 }

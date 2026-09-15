@@ -37,9 +37,12 @@ export class Output {
   table(rows: string[][], options: { indent?: string } = {}): void {
     if (rows.length === 0) return;
     const widths: number[] = [];
-    for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
+    for (const row of rows)
+      row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
     rows.forEach((row, r) => {
-      const text = row.map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i]!))).join('   ');
+      const text = row
+        .map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i]!)))
+        .join('   ');
       this.line(`${options.indent ?? ''}${r === 0 ? this.paint('bold', text) : text}`);
     });
   }
