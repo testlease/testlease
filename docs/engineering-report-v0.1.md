@@ -128,6 +128,25 @@ The repository was then transferred to the `testlease` organization (`testlease/
 still private); org and repository settings were changed to allow GitHub Actions to create pull
 requests so the changesets release PR can be opened.
 
+## Release 0.1.0 (2026-09-15)
+
+- Repository made public; `testlease/testlease` receives the changesets release flow.
+- npm: `testlease@0.1.0` and the six `@testlease/*@0.1.0` packages published from the Release
+  workflow with provenance. Verified from a clean directory: `npx testlease@0.1.0 serve`,
+  `status` and `acquire` against the published CLI work end to end.
+- GitHub Release `testlease@0.1.0` created from the generated changelog; tags for all seven
+  packages pushed.
+- Docker: `ghcr.io/testlease/testlease:0.1.0` and `:latest` published for linux/amd64 and
+  linux/arm64 through the workflow's manual dispatch. The package is created **private** by GHCR
+  and must be switched to public in the org's package settings (no API for that).
+- Two release-automation findings: (1) `setup-node`'s `registry-url` writes an `.npmrc` that
+  reads `NODE_AUTH_TOKEN`; passing only `NPM_TOKEN` made npm publish unauthenticated and the
+  registry answered `E404` for the scoped packages — fixed by passing both. (2) `changesets/action@v1`
+  does not recognise the changesets v3 CLI output, so it created the release tags locally but did
+  not push them or create GitHub releases; and a push of more than three tags at once does not
+  trigger `on: push: tags`. Upgrading to `changesets/action@v2` (Dependabot PR #4) is the intended
+  fix; until then the Docker job can be dispatched manually with `image_version`.
+
 ## Postponed to v0.2
 
 Event retention, `testlease leases` listing/filtering, hot config reload, PostgreSQL store behind
