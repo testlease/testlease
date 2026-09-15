@@ -1,10 +1,18 @@
 name: Release
 
-# Publishing is gated: this workflow opens/updates a "Version Packages" PR from changesets and
-# only publishes to npm when that PR is merged AND the NPM_TOKEN secret is configured.
+# Publishing is gated: on pushes to main this workflow opens/updates a "Version Packages" PR from
+# changesets and publishes to npm only when that PR is merged AND the NPM_TOKEN secret exists.
+# `changeset publish` then creates tags such as `testlease@0.1.0`; the tag push triggers the
+# Docker job, which publishes ghcr.io/<owner>/testlease:<version> and :latest.
 on:
   push:
     branches: [main]
+    tags: ['testlease@*']
+  workflow_dispatch:
+    inputs:
+      image_version:
+        description: 'Publish the Docker image for this version (e.g. 0.1.0) without a tag push'
+        required: true
 
 permissions:
   contents: write
@@ -15,8 +23,9 @@ concurrency: release-${{ github.ref }}
 
 jobs:
   release:
+    name: Version PR / npm publish
     runs-on: ubuntu-latest
-    if: github.repository == 'testlease/testlease'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'testlease/testlease'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,17 +48,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance requires a public repository; remove this line to publish from a private one.
           NPM_CONFIG_PROVENANCE: true
 
   docker:
-    name: Publish Docker image on tags
+    name: Publish Docker image to GHCR
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/testlease@')
+    if: startsWith(github.ref, 'refs/tags/testlease@') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve image name and version
+        id: meta
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ github.event.inputs.image_version }}"
+          else
+            version="${GITHUB_REF_NAME#testlease@}"   # testlease@0.1.0 -> 0.1.0
+          fi
+          image="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "publishing $image:$version"
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -63,5 +87,11 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/testlease/testlease:${{ github.ref_name }}
-            ghcr.io/testlease/testlease:latest
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+            ${{ steps.meta.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
