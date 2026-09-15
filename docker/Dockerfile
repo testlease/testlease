@@ -7,7 +7,7 @@
 #
 # better-sqlite3 ships prebuilt binaries for linux-musl, so no compiler is needed.
 
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /src
 RUN corepack enable && corepack prepare pnpm@10.26.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.build.json ./
@@ -20,7 +20,7 @@ RUN pnpm build
 # Produce a self-contained, production-only copy of the `testlease` package.
 RUN pnpm --filter testlease deploy --prod --legacy /out
 
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production \
     TESTLEASE_HOST=0.0.0.0 \
     TESTLEASE_PORT=4747 \
