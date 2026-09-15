@@ -31,6 +31,10 @@ export const ErrorCodes = {
   RESOURCE_DISABLED: 'RESOURCE_DISABLED',
   SECRET_RESOLUTION_FAILED: 'SECRET_RESOLUTION_FAILED',
   SERVER_SHUTTING_DOWN: 'SERVER_SHUTTING_DOWN',
+  /** Unknown route. */
+  NOT_FOUND: 'NOT_FOUND',
+  /** Client-side: the server could not be reached (connection refused, DNS, reset). */
+  UNAVAILABLE: 'UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
 
@@ -57,6 +61,8 @@ export const errorHttpStatus: Record<ErrorCode, number> = {
   RESOURCE_DISABLED: 409,
   SECRET_RESOLUTION_FAILED: 500,
   SERVER_SHUTTING_DOWN: 503,
+  NOT_FOUND: 404,
+  UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 };
 

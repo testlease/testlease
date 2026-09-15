@@ -18,10 +18,7 @@ function sameJson(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function changedKeys(
-  a: Metadata | Record<string, string>,
-  b: Metadata | Record<string, string>,
-): string[] {
+function changedKeys(a: Metadata | Tags, b: Metadata | Tags): string[] {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   return [...keys].filter((k) => !sameJson(a[k], b[k])).sort();
 }
