@@ -46,7 +46,12 @@ export interface LeaseEvidence {
 }
 
 /** Shared by the client and adapters: a clear error instead of `undefined` for a missing secret. */
-export function requireSecret(secrets: Record<string, string>, name: string, known: string[], resourceId: string): string {
+export function requireSecret(
+  secrets: Record<string, string>,
+  name: string,
+  known: string[],
+  resourceId: string,
+): string {
   const value = secrets[name];
   if (value === undefined) {
     throw new Error(

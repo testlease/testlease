@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
-const pkg = (name: string) => fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
+const pkg = (name: string) =>
+  fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
 
 /**
  * In-process tests import workspace packages from source so that coverage is attributed to
@@ -32,7 +33,12 @@ export default defineConfig({
       include: ['packages/*/src/**/*.ts'],
       // The CLI and the Playwright adapter run in spawned processes (covered end to end by
       // their own suites, not measurable in-process).
-      exclude: ['packages/*/src/index.ts', 'packages/cli/src/**', 'packages/playwright/src/**', 'packages/**/bin/**'],
+      exclude: [
+        'packages/*/src/index.ts',
+        'packages/cli/src/**',
+        'packages/playwright/src/**',
+        'packages/**/bin/**',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,

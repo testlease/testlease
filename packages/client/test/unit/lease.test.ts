@@ -10,7 +10,13 @@ function view(overrides: Partial<LeaseView> = {}): LeaseView {
     pool: 'p',
     owner: 'o',
     principal: 'local',
-    resource: { id: 'r1', pool: 'p', tags: { region: 'nl' }, metadata: { email: 'e@x' }, secretKeys: ['password'] },
+    resource: {
+      id: 'r1',
+      pool: 'p',
+      tags: { region: 'nl' },
+      metadata: { email: 'e@x' },
+      secretKeys: ['password'],
+    },
     state: 'ACTIVE',
     ttlMs: 3000,
     createdAt: 1_000,
@@ -26,15 +32,23 @@ function fakeClient(behaviour: { renew?: () => Promise<RenewResponse> } = {}) {
   const client = {
     renew: vi.fn(async (): Promise<RenewResponse> => {
       calls.push('renew');
-      return behaviour.renew ? behaviour.renew() : { lease: view({ expiresAt: Date.now() + 3000, lastHeartbeatAt: Date.now() }) };
+      return behaviour.renew
+        ? behaviour.renew()
+        : { lease: view({ expiresAt: Date.now() + 3000, lastHeartbeatAt: Date.now() }) };
     }),
     release: vi.fn(async () => {
       calls.push('release');
-      return { lease: view({ state: 'RELEASED', endReason: 'RELEASED', endedAt: 5_000 }), outcome: 'released' as const };
+      return {
+        lease: view({ state: 'RELEASED', endReason: 'RELEASED', endedAt: 5_000 }),
+        outcome: 'released' as const,
+      };
     }),
     quarantine: vi.fn(async () => {
       calls.push('quarantine');
-      return { lease: view({ state: 'RELEASED', endReason: 'QUARANTINED', endedAt: 5_000 }), resource: {} as never };
+      return {
+        lease: view({ state: 'RELEASED', endReason: 'QUARANTINED', endedAt: 5_000 }),
+        resource: {} as never,
+      };
     }),
     resolveSecrets: vi.fn(async () => {
       calls.push('secrets');
@@ -56,7 +70,9 @@ describe('Lease handle', () => {
     expect(lease.tags.region).toBe('nl');
     expect(lease.resource.secretKeys).toEqual(['password']);
     expect(await lease.secret('password')).toBe('pw-value');
-    await expect(lease.secret('nope')).rejects.toThrow(/no secret named "nope". Available: password/);
+    await expect(lease.secret('nope')).rejects.toThrow(
+      /no secret named "nope". Available: password/,
+    );
   });
 
   it('heartbeat renews on the interval, never overlaps, and stops on release', async () => {
@@ -101,7 +117,10 @@ describe('Lease handle', () => {
         },
       });
       const lease = new Lease(client, view());
-      lease.startHeartbeat({ intervalMs: 50, onError: (e) => errors.push((e as TestLeaseError).code) });
+      lease.startHeartbeat({
+        intervalMs: 50,
+        onError: (e) => errors.push((e as TestLeaseError).code),
+      });
       await vi.advanceTimersByTimeAsync(60);
       expect(errors).toEqual(['LEASE_EXPIRED']);
       expect(lease.heartbeat.running).toBe(false);
@@ -109,7 +128,13 @@ describe('Lease handle', () => {
       expect(lease.heartbeat.failures).toBe(1);
       expect(lease.state).toBe('EXPIRED');
       const ev = lease.evidence();
-      expect(ev).toMatchObject({ leaseId: 'lease_1', resourceId: 'r1', state: 'EXPIRED', expiredDuringUse: true, heartbeat: { failures: 1, lastError: { code: 'LEASE_EXPIRED' } } });
+      expect(ev).toMatchObject({
+        leaseId: 'lease_1',
+        resourceId: 'r1',
+        state: 'EXPIRED',
+        expiredDuringUse: true,
+        heartbeat: { failures: 1, lastError: { code: 'LEASE_EXPIRED' } },
+      });
       expect(JSON.stringify(ev)).not.toContain('pw-value');
       expect(JSON.stringify(ev)).not.toContain('secretKeys'); // evidence has no secret names either
     } finally {
@@ -154,7 +179,10 @@ describe('Lease handle', () => {
     const other = new Lease(client, view({ leaseId: 'lease_2' }));
     await other.quarantine('locked');
     expect(other.state).toBe('RELEASED');
-    expect(other.evidence()).toMatchObject({ endReason: 'QUARANTINED', quarantineReason: 'locked' });
+    expect(other.evidence()).toMatchObject({
+      endReason: 'QUARANTINED',
+      quarantineReason: 'locked',
+    });
     expect(calls).toContain('quarantine');
   });
 
