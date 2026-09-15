@@ -144,8 +144,9 @@ requests so the changesets release PR can be opened.
   registry answered `E404` for the scoped packages — fixed by passing both. (2) `changesets/action@v1`
   does not recognise the changesets v3 CLI output, so it created the release tags locally but did
   not push them or create GitHub releases; and a push of more than three tags at once does not
-  trigger `on: push: tags`. Upgrading to `changesets/action@v2` (Dependabot PR #4) is the intended
-  fix; until then the Docker job can be dispatched manually with `image_version`.
+  trigger `on: push: tags`. `changesets/action@v2` (Dependabot PR #4, merged) is the intended fix; it renamed its inputs
+  (`publish-script`, `pr-title`, `commit-message`, `github-token`), which the workflow now uses. The
+  Docker job can also be dispatched manually with `image_version`.
 
 ## Postponed to v0.2
 
