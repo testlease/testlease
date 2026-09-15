@@ -7,6 +7,8 @@ import {
   TestLeaseError,
   type AcquireRequest,
   type EventsResponse,
+  type LeaseState,
+  type ListLeasesQuery,
   type PoolsResponse,
   type QuarantineRequest,
   type QuarantineResourceRequest,
@@ -19,6 +21,8 @@ import {
 import { idSchema, validate, type Logger, type TestLeaseEngine } from '@testlease/core';
 import { requireScope, type AuthContext, type Authenticator } from './auth.js';
 import { toErrorResponse } from './http-errors.js';
+import { renderMetrics } from './metrics.js';
+import { openapiDocument } from './openapi.js';
 
 export interface AppVariables {
   auth: AuthContext;
@@ -96,8 +100,27 @@ export function createApp(options: CreateAppOptions): TestLeaseApp {
   );
 
   app.get('/healthz', async (c) => c.json(await engine.api.health()));
+  app.get('/openapi.json', (c) => c.json(openapiDocument));
 
-  // ---- authentication for everything under /v1 --------------------------------------------
+  // ---- authentication for everything under /v1 (and /metrics) -----------------------------
+  app.use('/metrics', async (c, next) => {
+    const auth = authenticator.authenticate(c.req.header('authorization'));
+    if (!auth) {
+      throw new TestLeaseError(
+        ErrorCodes.UNAUTHORIZED,
+        'Missing or invalid API token. Send "Authorization: Bearer <token>".',
+      );
+    }
+    c.set('auth', auth);
+    await next();
+  });
+  app.get('/metrics', (c) => {
+    requireScope(c.get('auth'), 'pool:read');
+    return c.text(renderMetrics(engine), 200, {
+      'content-type': 'text/plain; version=0.0.4; charset=utf-8',
+    });
+  });
+
   app.use('/v1/*', async (c, next) => {
     const auth = authenticator.authenticate(c.req.header('authorization'));
     if (!auth) {
@@ -127,7 +150,10 @@ export function createApp(options: CreateAppOptions): TestLeaseApp {
     }),
   );
 
-  const api = (c: Context<AppEnv>) => engine.api.as(c.get('auth').principal);
+  const api = (c: Context<AppEnv>) => {
+    const auth = c.get('auth');
+    return engine.api.as(auth.principal, { pools: auth.pools });
+  };
   const scoped = (c: Context<AppEnv>, scope: Scope) => {
     requireScope(c.get('auth'), scope);
     return api(c);
@@ -148,6 +174,7 @@ export function createApp(options: CreateAppOptions): TestLeaseApp {
       auth: auth.mode,
       principal: auth.principal,
       scopes: [...auth.scopes],
+      ...(auth.pools ? { pools: [...auth.pools] } : {}),
     };
     return c.json(body);
   });
@@ -180,6 +207,37 @@ export function createApp(options: CreateAppOptions): TestLeaseApp {
   );
 
   // ---- leases --------------------------------------------------------------------------------
+  app.get('/v1/leases', async (c) => {
+    const q = c.req.query();
+    const query: ListLeasesQuery = {};
+    if (q.state !== undefined) {
+      if (!['ACTIVE', 'RELEASED', 'EXPIRED', 'ALL'].includes(q.state)) {
+        throw new TestLeaseError(
+          ErrorCodes.INVALID_REQUEST,
+          `Invalid state "${q.state}"; use ACTIVE, RELEASED, EXPIRED or ALL.`,
+        );
+      }
+      query.state = q.state as LeaseState | 'ALL';
+    }
+    if (q.pool) query.pool = q.pool;
+    if (q.owner) query.owner = q.owner;
+    if (q.limit !== undefined) {
+      const limit = Number(q.limit);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 1000) {
+        throw new TestLeaseError(
+          ErrorCodes.INVALID_REQUEST,
+          'limit must be an integer between 1 and 1000.',
+        );
+      }
+      query.limit = limit;
+    }
+    return c.json(await scoped(c, 'lease:read').listLeases(query));
+  });
+
+  app.post('/v1/config/reload', async (c) =>
+    c.json(await scoped(c, 'resource:admin').reloadConfig()),
+  );
+
   app.post('/v1/leases/acquire', async (c) => {
     const body = await json<AcquireRequest>(c);
     const disconnect = watchDisconnect(c);

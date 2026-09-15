@@ -5,7 +5,11 @@ import {
   TestLeaseError,
   type AcquireRequest,
   type AcquireResponse,
+  type AdminApi,
   type CallOptions,
+  type ConfigReloadResponse,
+  type ListLeasesQuery,
+  type ListLeasesResponse,
   type EventsResponse,
   type HealthResponse,
   type LeaseView,
@@ -62,7 +66,7 @@ export function defaultOwner(): string {
  * HTTP client for TestLease. Implements the same `TestLeaseApi` contract as the in-process
  * engine, so adapters can be written against the interface and tested without a server.
  */
-export class TestLeaseClient implements TestLeaseApi, SecretsApi {
+export class TestLeaseClient implements TestLeaseApi, SecretsApi, AdminApi {
   private readonly http: HttpTransport;
   private readonly owner: string;
   private readonly requestTimeoutMs: number;
@@ -163,6 +167,36 @@ export class TestLeaseClient implements TestLeaseApi, SecretsApi {
     });
   }
 
+  listLeases(query: ListLeasesQuery = {}, opts?: CallOptions): Promise<ListLeasesResponse> {
+    const params = new URLSearchParams();
+    if (query.state) params.set('state', query.state);
+    if (query.pool) params.set('pool', query.pool);
+    if (query.owner) params.set('owner', query.owner);
+    if (query.limit) params.set('limit', String(query.limit));
+    const qs = params.toString();
+    return this.http.request({
+      method: 'GET',
+      path: `/v1/leases${qs ? `?${qs}` : ''}`,
+      signal: opts?.signal,
+      retry: true,
+    });
+  }
+
+  /** Re-reads the server's configuration file (requires `resource:admin`). */
+  reloadConfig(opts?: CallOptions): Promise<ConfigReloadResponse> {
+    return this.http.request({ method: 'POST', path: '/v1/config/reload', signal: opts?.signal });
+  }
+
+  /** Prometheus text exposition. */
+  metrics(opts?: CallOptions): Promise<string> {
+    return this.http.requestText({
+      method: 'GET',
+      path: '/metrics',
+      signal: opts?.signal,
+      retry: true,
+    });
+  }
+
   listRecentEvents(limit = 100, opts?: CallOptions): Promise<EventsResponse> {
     return this.http.request({
       method: 'GET',
@@ -191,6 +225,9 @@ export class TestLeaseClient implements TestLeaseApi, SecretsApi {
       signal: opts?.signal,
       timeoutMs: wait + this.requestTimeoutMs,
       retry: true,
+      // Keep retrying through SERVER_SHUTTING_DOWN / connection failures for the whole wait
+      // budget; the same clientRequestId makes every retry return the same lease if one was granted.
+      retryUntil: Date.now() + wait + this.requestTimeoutMs,
     });
   }
 

@@ -20,6 +20,7 @@ export function toLeaseView(row: LeaseRow): LeaseView {
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     lastHeartbeatAt: row.lastHeartbeatAt,
+    renewCount: row.renewCount,
   };
   if (row.endedAt !== null) view.endedAt = row.endedAt;
   if (row.endReason !== null) view.endReason = row.endReason;

@@ -70,6 +70,15 @@ export const tokenConfigSchema = z.strictObject({
   /** Literal token or a secret reference (`env:TESTLEASE_TOKEN_CI`). */
   token: z.string().min(1),
   scopes: z.array(z.enum(Scopes)).default(['lease:read', 'lease:write', 'pool:read']),
+  /** Restrict this token to these pools (leases, resources and events of other pools are forbidden). */
+  pools: z.array(identifier).min(1).optional(),
+});
+
+export const historyConfigSchema = z.strictObject({
+  /** Events and ended leases older than this are deleted (active leases are never touched). */
+  retention: durationSchema.default(30 * 86_400_000),
+  /** Record a LEASE_RENEWED event per heartbeat (off: only `renewCount`/`lastHeartbeatAt` on the lease). */
+  recordRenewals: z.boolean().default(false),
 });
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
@@ -102,6 +111,7 @@ export const configSchema = z.strictObject({
     })
     .prefault({}),
   mcp: mcpConfigSchema.prefault({}),
+  history: historyConfigSchema.prefault({}),
   pools: z.record(identifier, poolConfigSchema).default({}),
 });
 
@@ -110,11 +120,13 @@ export type PoolConfig = z.output<typeof poolConfigSchema> & { maxTtl: number };
 export type TokenConfig = z.output<typeof tokenConfigSchema>;
 export type ServerConfig = z.output<typeof serverConfigSchema>;
 export type McpConfig = z.output<typeof mcpConfigSchema>;
+export type HistoryConfig = z.output<typeof historyConfigSchema>;
 
 export interface TestLeaseConfig {
   server: ServerConfig;
   auth: { tokens: TokenConfig[] };
   mcp: McpConfig;
+  history: HistoryConfig;
   pools: Record<string, PoolConfig>;
 }
 

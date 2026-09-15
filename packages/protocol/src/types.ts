@@ -115,6 +115,8 @@ export interface LeaseView {
   createdAt: EpochMs;
   expiresAt: EpochMs;
   lastHeartbeatAt: EpochMs;
+  /** Number of successful renewals (heartbeats). Kept on the lease instead of one event per heartbeat. */
+  renewCount: number;
   endedAt?: EpochMs;
   endReason?: LeaseEndReason;
   clientRequestId?: string;
@@ -244,10 +246,42 @@ export interface HealthResponse {
   name: 'testlease';
   version: string;
   uptimeMs: number;
+  /** Server clock (monotonic; immune to wall-clock jumps while the process runs). */
   now: EpochMs;
+  /** `Date.now() - now`; large values mean the system clock jumped since startup. */
+  wallClockDriftMs: number;
   db: { schemaVersion: number };
   auth: { mode: AuthMode };
   mcp: { http: boolean };
+  config: { loadedAt: EpochMs; reloads: number };
+}
+
+export interface ListLeasesQuery {
+  /** Defaults to ACTIVE. */
+  state?: LeaseState | 'ALL';
+  pool?: string;
+  owner?: string;
+  /** 1..1000, default 100. Newest first. */
+  limit?: number;
+}
+
+export interface ListLeasesResponse {
+  leases: LeaseView[];
+}
+
+/** Result of a configuration reload (SIGHUP or POST /v1/config/reload). */
+export interface ConfigReloadResponse {
+  pools: number;
+  resources: number;
+  registered: string[];
+  updated: string[];
+  disabled: string[];
+  enabled: string[];
+  absentPools: string[];
+  /** e.g. "server.port changed; requires a restart" or "pools.x has no resources". */
+  warnings: string[];
+  loadedAt: EpochMs;
+  reloads: number;
 }
 
 export interface PoolsResponse {
@@ -258,6 +292,8 @@ export interface WhoAmIResponse {
   auth: AuthMode;
   principal: string;
   scopes: Scope[];
+  /** Pools this identity may use; absent = all pools. */
+  pools?: string[];
 }
 
 export const Scopes = [

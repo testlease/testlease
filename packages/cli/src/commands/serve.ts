@@ -48,6 +48,17 @@ export async function runServe(
     'configuration loaded',
   );
 
+  // Re-read the same file (and env) on reload; CLI flag overrides are re-applied because they
+  // describe this process, not the file.
+  const applyFlags = (c: typeof config) => {
+    if (opts.host) c.server.host = opts.host;
+    if (opts.port !== undefined) c.server.port = Number(opts.port);
+    if (opts.db) c.server.db = opts.db;
+    if (opts.logLevel) c.server.logLevel = opts.logLevel as typeof c.server.logLevel;
+    if (opts.allowInsecureRemote) c.server.allowInsecureRemote = true;
+    return c;
+  };
+  let server: Awaited<ReturnType<typeof startServer>> | undefined;
   let engine;
   try {
     engine = await createTestLease({
@@ -56,6 +67,21 @@ export async function runServe(
       version: CLI_VERSION,
       authMode: config.auth.tokens.length ? 'token' : 'insecure-local',
       mcpHttp: opts.mcp && config.mcp.http,
+      configLoader: () => {
+        const again = loadRuntimeConfig({
+          path: opts.config,
+          env: ctx.env,
+          optional: !opts.config && !ctx.env.TESTLEASE_CONFIG,
+        });
+        return { ...again, config: applyFlags(again.config) };
+      },
+      onReload: async (_next, result) => {
+        await server?.reloadAuth();
+        logger.info(
+          { event: 'config.reloaded', reloads: result.reloads, warnings: result.warnings },
+          'configuration reloaded',
+        );
+      },
     });
   } catch (err) {
     ctx.out.err(
@@ -64,34 +90,48 @@ export async function runServe(
     return EXIT.USAGE;
   }
 
-  let server;
   try {
     const { mountMcp } = await import('../mcp-mount.js');
     server = await startServer({
       engine,
       logger,
       extend:
-        opts.mcp && config.mcp.http ? (app) => mountMcp(app, engine, config, logger) : undefined,
+        opts.mcp && config.mcp.http
+          ? (app, { authenticator }) => mountMcp(app, engine, config, logger, authenticator)
+          : undefined,
     });
   } catch (err) {
     engine.close();
     ctx.out.err(`${ctx.out.paint(['red', 'bold'], 'Startup failed')}: ${(err as Error).message}`);
     return EXIT.USAGE;
   }
-  hooks.onReady?.(server.url);
+  const running = server;
+  hooks.onReady?.(running.url);
 
   if (hooks.signals !== false) {
     const shutdown = (signal: string) => {
       logger.info({ event: 'server.signal', signal }, 'shutdown requested');
-      void server.close({ timeoutMs: 10_000 }).then(() => process.exit(0));
+      void running.close({ timeoutMs: 10_000 }).then(() => process.exit(0));
     };
     process.once('SIGINT', () => shutdown('SIGINT'));
     process.once('SIGTERM', () => shutdown('SIGTERM'));
+    const reloadEngine = engine;
+    process.on('SIGHUP', () => {
+      logger.info({ event: 'server.signal', signal: 'SIGHUP' }, 'configuration reload requested');
+      reloadEngine
+        .reload()
+        .catch((err: Error) =>
+          logger.error(
+            { event: 'config.reload_failed', error: err.message },
+            'reload rejected; running configuration unchanged',
+          ),
+        );
+    });
   }
   // Keep running until closed.
   await new Promise<void>((resolve) => {
-    const orig = server.close.bind(server);
-    server.close = async (o) => {
+    const orig = running.close.bind(running);
+    running.close = async (o) => {
       await orig(o);
       resolve();
     };

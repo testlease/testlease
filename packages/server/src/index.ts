@@ -17,6 +17,7 @@ export {
   resolveTokens,
   requireScope,
   isLoopbackHost,
+  SwappableAuthenticator,
   ALL_SCOPES,
   type AuthContext,
   type Authenticator,
@@ -24,3 +25,5 @@ export {
 } from './auth.js';
 export { createLogger, type CreateLoggerOptions } from './logger.js';
 export { toErrorResponse } from './http-errors.js';
+export { renderMetrics } from './metrics.js';
+export { openapiDocument, documentedRoutes } from './openapi.js';

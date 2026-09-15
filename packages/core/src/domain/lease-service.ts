@@ -5,6 +5,7 @@ import {
   type AcquireResponse,
   type LeaseEvent,
   type LeaseView,
+  type ListLeasesQuery,
   type PoolDetail,
   type PoolSummary,
   type QuarantineRequest,
@@ -23,10 +24,11 @@ import { type Clock, systemClock } from '../clock.js';
 import { formatDuration } from '../duration.js';
 import { newLeaseId } from '../ids.js';
 import { type Logger, noopLogger } from '../logger.js';
-import type { LeaseRow, ResourceRow } from '../store/rows.js';
+import type { LeaseFilter, LeaseRow, ResourceRow } from '../store/rows.js';
 import type { SqliteStore } from '../store/sqlite-store.js';
 import {
   acquireRequestSchema,
+  idSchema,
   ownerSchema,
   principalSchema,
   quarantineRequestSchema,
@@ -63,6 +65,21 @@ export interface LeaseServiceOptions {
   /** Longest the reaper sleeps between checks even if no lease is due sooner (clock-jump safety). */
   reaperMaxDelayMs?: number;
   leaseIdFactory?: () => string;
+  /** Record a LEASE_RENEWED event per heartbeat (default false; `renewCount` is always kept). */
+  recordRenewals?: boolean;
+}
+
+/** In-process counters since start, per pool (for /metrics). State gauges come from the store. */
+export interface PoolCounters {
+  acquired: number;
+  reused: number;
+  released: number;
+  expired: number;
+  quarantined: number;
+  timeouts: number;
+  exhausted: number;
+  waitMsSum: number;
+  waitCount: number;
 }
 
 interface NormalizedAcquire {
@@ -97,6 +114,8 @@ export class LeaseService {
   private readonly reaperMaxDelayMs: number;
   private readonly leaseIdFactory: () => string;
   private readonly waiters = new WaitQueue<NormalizedAcquire, AcquireResponse>();
+  private readonly counters = new Map<string, PoolCounters>();
+  recordRenewals: boolean;
 
   private reaperTimer: NodeJS.Timeout | null = null;
   private started = false;
@@ -111,6 +130,59 @@ export class LeaseService {
     this.maxWaitMs = options.maxWaitMs ?? 10 * 60_000;
     this.reaperMaxDelayMs = options.reaperMaxDelayMs ?? 30_000;
     this.leaseIdFactory = options.leaseIdFactory ?? newLeaseId;
+    this.recordRenewals = options.recordRenewals ?? false;
+  }
+
+  private counter(pool: string): PoolCounters {
+    let c = this.counters.get(pool);
+    if (!c) {
+      c = {
+        acquired: 0,
+        reused: 0,
+        released: 0,
+        expired: 0,
+        quarantined: 0,
+        timeouts: 0,
+        exhausted: 0,
+        waitMsSum: 0,
+        waitCount: 0,
+      };
+      this.counters.set(pool, c);
+    }
+    return c;
+  }
+
+  /** Snapshot of in-process counters (since start) keyed by pool. */
+  metrics(): Record<string, PoolCounters> {
+    return Object.fromEntries([...this.counters].map(([k, v]) => [k, { ...v }]));
+  }
+
+  /** Re-evaluates every pool with waiters (after a configuration reload added or restored resources). */
+  notifyAllPools(): void {
+    this.onStateChanged(this.waiters.pools());
+    this.scheduleReaper();
+  }
+
+  /** Lists leases newest first; `state` defaults to ACTIVE, `ALL` disables the state filter. */
+  listLeases(query: ListLeasesQuery = {}): LeaseView[] {
+    this.expireDue();
+    const limit = Math.min(Math.max(Math.floor(query.limit ?? 100), 1), 1000);
+    const filter: LeaseFilter = { limit };
+    const state = query.state ?? 'ACTIVE';
+    if (state !== 'ALL') filter.state = state;
+    if (query.pool) filter.pool = validate(idSchema, query.pool, 'pool');
+    if (query.owner) filter.owner = validate(ownerSchema, query.owner, 'owner');
+    return this.store.listLeases(filter).map(toLeaseView);
+  }
+
+  /** Deletes events and ended leases older than `retentionMs`. Returns what was removed. */
+  pruneHistory(retentionMs: number): { events: number; leases: number } {
+    const before = this.clock.now() - retentionMs;
+    const removed = this.store.transaction(() => this.store.pruneHistory(before));
+    if (removed.events || removed.leases) {
+      this.logger.info({ event: 'history.pruned', ...removed, retentionMs }, 'history pruned');
+    }
+    return removed;
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -244,6 +316,7 @@ export class LeaseService {
         owner: req.owner,
         details: { waitedMs: 0, tags: req.tags, immediate: true },
       });
+      this.counter(req.pool).exhausted++;
       throw this.exhaustedError(req, 0, ErrorCodes.POOL_EXHAUSTED);
     }
     if (options.signal?.aborted) throw this.abortedError(req, 0);
@@ -275,6 +348,7 @@ export class LeaseService {
           { event: 'lease.acquire_timeout', pool: req.pool, owner: req.owner, waitedMs },
           'acquisition timed out',
         );
+        this.counter(req.pool).timeouts++;
         reject(this.exhaustedError(req, waitedMs, ErrorCodes.ACQUIRE_TIMEOUT));
       }, req.waitTimeoutMs);
       const onAbort = () => {
@@ -325,6 +399,13 @@ export class LeaseService {
       this.onStateChanged(touched);
     }
     if (result) {
+      const c = this.counter(req.pool);
+      if (result.reused) c.reused++;
+      else {
+        c.acquired++;
+        c.waitMsSum += waitedMs;
+        c.waitCount++;
+      }
       this.logger.info(
         {
           event: result.reused ? 'lease.reused' : 'lease.acquired',
@@ -486,15 +567,23 @@ export class LeaseService {
         }
         const expiresAt = now + ttlMs;
         this.store.renewLease(lease.id, expiresAt, ttlMs, now);
-        this.store.insertEvent({
-          at: now,
-          type: 'LEASE_RENEWED',
-          pool: lease.pool,
-          resourceId: lease.resourceId,
-          leaseId: lease.id,
-          owner: lease.owner,
-          details: { previousExpiresAt: lease.expiresAt, expiresAt, ttlMs },
-        });
+        // One event per heartbeat is noise at scale; `renewCount`/`lastHeartbeatAt` live on the lease.
+        if (this.recordRenewals || ttlMs !== lease.ttlMs) {
+          this.store.insertEvent({
+            at: now,
+            type: 'LEASE_RENEWED',
+            pool: lease.pool,
+            resourceId: lease.resourceId,
+            leaseId: lease.id,
+            owner: lease.owner,
+            details: {
+              previousExpiresAt: lease.expiresAt,
+              expiresAt,
+              ttlMs,
+              renewCount: lease.renewCount + 1,
+            },
+          });
+        }
         return toLeaseView(this.store.getLease(lease.id)!);
       });
     } finally {
@@ -549,6 +638,7 @@ export class LeaseService {
     } finally {
       this.onStateChanged(touched);
     }
+    if (response.outcome === 'released') this.counter(response.lease.pool).released++;
     this.logger.info(
       {
         event: 'lease.released',
@@ -618,6 +708,7 @@ export class LeaseService {
     } finally {
       this.onStateChanged(touched);
     }
+    this.counter(response.lease.pool).quarantined++;
     this.logger.warn(
       {
         event: 'resource.quarantined',
@@ -790,6 +881,7 @@ export class LeaseService {
   private expireDueInTx(now: number): LeaseRow[] {
     const due = this.store.listDueLeases(now);
     for (const lease of due) {
+      this.counter(lease.pool).expired++;
       this.endActiveLease(lease, 'EXPIRED', 'EXPIRED', now, {
         expiresAt: lease.expiresAt,
         lastHeartbeatAt: lease.lastHeartbeatAt,
@@ -922,6 +1014,13 @@ export class LeaseService {
         for (const p of touched) this.pendingPumps.add(p);
       }
       if (result && this.waiters.remove(waiter)) {
+        const c = this.counter(pool);
+        if (result.reused) c.reused++;
+        else {
+          c.acquired++;
+          c.waitMsSum += result.waitedMs;
+          c.waitCount++;
+        }
         this.logger.info(
           {
             event: result.reused ? 'lease.reused' : 'lease.acquired',

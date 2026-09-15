@@ -284,6 +284,52 @@ export function registerReadCommands(program: Command, getCtx: () => CliContext)
     );
 
   program
+    .command('leases')
+    .description('List leases (default: active ones), newest first')
+    .option('-s, --state <state>', 'ACTIVE | RELEASED | EXPIRED | ALL', 'ACTIVE')
+    .option('-p, --pool <pool>', 'only this pool')
+    .option('--owner <owner>', 'only this owner')
+    .option('-n, --limit <n>', 'max rows (1-1000)', '100')
+    .action(async (opts: { state: string; pool?: string; owner?: string; limit: string }) => {
+      const ctx = getCtx();
+      const { leases } = await ctx.client().listLeases({
+        state: opts.state.toUpperCase() as 'ACTIVE' | 'RELEASED' | 'EXPIRED' | 'ALL',
+        ...(opts.pool ? { pool: opts.pool } : {}),
+        ...(opts.owner ? { owner: opts.owner } : {}),
+        limit: Number(opts.limit),
+      });
+      if (ctx.out.opts.json) return ctx.out.json({ leases });
+      if (leases.length === 0) return ctx.out.line(ctx.out.paint('dim', 'No leases.'));
+      const now = Date.now();
+      ctx.out.table([
+        [
+          'LEASE',
+          'STATE',
+          'POOL',
+          'RESOURCE',
+          'OWNER',
+          'PRINCIPAL',
+          'AGE',
+          'EXPIRES/ENDED',
+          'RENEWS',
+        ],
+        ...leases.map((l) => [
+          l.leaseId,
+          ctx.out.state(l.state),
+          l.pool,
+          l.resourceId,
+          l.owner,
+          l.principal,
+          formatDuration(now - l.createdAt),
+          l.state === 'ACTIVE'
+            ? ctx.out.relative(l.expiresAt, now)
+            : `${l.endReason ?? ''} ${l.endedAt ? ctx.out.relative(l.endedAt, now) : ''}`.trim(),
+          String(l.renewCount),
+        ]),
+      ]);
+    });
+
+  program
     .command('whoami')
     .description('Show how the server sees this client (auth mode, principal, scopes)')
     .action(async () => {
@@ -292,5 +338,6 @@ export function registerReadCommands(program: Command, getCtx: () => CliContext)
       if (ctx.out.opts.json) return ctx.out.json({ ...who, owner: ctx.owner });
       ctx.out.line(`principal=${who.principal}  auth=${who.auth}  owner=${ctx.owner}`);
       ctx.out.line(`scopes: ${who.scopes.join(', ')}`);
+      ctx.out.line(`pools: ${who.pools ? who.pools.join(', ') : '(all)'}`);
     });
 }

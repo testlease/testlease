@@ -3,6 +3,7 @@ import { createMcpHttpHandler } from '@testlease/mcp';
 import {
   createAuthenticatorFromConfig,
   isLoopbackHost,
+  type Authenticator,
   type TestLeaseApp,
 } from '@testlease/server';
 
@@ -15,8 +16,9 @@ export async function mountMcp(
   engine: TestLeaseEngine,
   config: TestLeaseConfig,
   logger: Logger,
+  authenticator?: Authenticator,
 ): Promise<void> {
-  const authenticator = await createAuthenticatorFromConfig(engine);
+  authenticator ??= await createAuthenticatorFromConfig(engine);
   const handler = createMcpHttpHandler({
     loopback: isLoopbackHost(config.server.host),
     allowQuarantine: config.mcp.allowQuarantine,
@@ -24,7 +26,10 @@ export async function mountMcp(
     authenticate: (request) => {
       const auth = authenticator.authenticate(request.headers.get('authorization') ?? undefined);
       if (!auth) return null;
-      return { principal: auth.principal, api: engine.api.as(auth.principal) };
+      return {
+        principal: auth.principal,
+        api: engine.api.as(auth.principal, { pools: auth.pools }),
+      };
     },
     log: (level, obj, msg) => logger[level](obj, msg),
   });

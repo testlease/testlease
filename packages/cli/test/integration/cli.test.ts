@@ -3,7 +3,7 @@
  * by the CLI itself (`testlease serve`). Requires `pnpm build`.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -165,6 +165,39 @@ describe('testlease CLI', () => {
       (JSON.parse(status.stdout) as { pools: { counts: { leased: number } }[] }).pools[0]!.counts
         .leased,
     ).toBe(0);
+  });
+
+  it('leases lists active/all leases and reload applies a config change without restart', async () => {
+    const acq = await run(['acquire', 'buyers', '--tag', 'region=nl', '--json'], env);
+    const { lease } = JSON.parse(acq.stdout) as { lease: { leaseId: string } };
+    const active = await run(['leases'], env);
+    expect(active.code).toBe(0);
+    expect(active.stdout).toMatch(/LEASE\s+STATE\s+POOL\s+RESOURCE\s+OWNER\s+PRINCIPAL/);
+    expect(active.stdout).toContain(lease.leaseId);
+    await run(['release', lease.leaseId], env);
+    expect((await run(['leases'], env)).stdout).toMatch(/No leases/);
+    const all = await run(['leases', '--state', 'all', '--json'], env);
+    expect(
+      (JSON.parse(all.stdout) as { leases: { state: string }[] }).leases.some(
+        (l) => l.state === 'RELEASED',
+      ),
+    ).toBe(true);
+
+    // Add a resource to the file and reload through the CLI.
+    const configPath = join(dir, 'testlease.yml');
+    writeFileSync(
+      configPath,
+      readFileSync(configPath, 'utf8') + `      - id: buyer-03\n        tags: { region: de }\n`,
+    );
+    const reload = await run(['reload'], env);
+    expect(reload.code, reload.stderr).toBe(0);
+    expect(reload.stdout).toMatch(/Configuration reloaded \(#1\)/);
+    expect(reload.stdout).toMatch(/\+ buyer-03/);
+    const status = await run(['status', '--json'], env);
+    expect(
+      (JSON.parse(status.stdout) as { pools: { counts: { total: number } }[] }).pools[0]!.counts
+        .total,
+    ).toBe(3);
   });
 
   it('doctor reports config, secrets and connectivity', async () => {

@@ -241,6 +241,29 @@ TestLease is an MCP server, so an agent can coordinate resources the same way a 
 - **stdio** (agent host spawns it): `testlease mcp --url http://127.0.0.1:4747`
 - **Streamable HTTP** (remote server): `POST http://host:4747/mcp` with a Bearer token
 
+Connect your agent (stdio bridge; the server must be running):
+
+```bash
+# Claude Code
+claude mcp add testlease -- npx -y testlease mcp --url http://127.0.0.1:4747
+```
+
+```json
+// Claude Desktop, Cursor and other hosts using the mcpServers format
+{
+  "mcpServers": {
+    "testlease": {
+      "command": "npx",
+      "args": ["-y", "testlease", "mcp", "--url", "http://127.0.0.1:4747"],
+      "env": { "TESTLEASE_TOKEN": "…", "TESTLEASE_OWNER": "mcp:my-agent" }
+    }
+  }
+}
+```
+
+For a remote server, hosts that support Streamable HTTP connect to `http://host:4747/mcp` with
+`Authorization: Bearer <token>`; give agents a token _without_ `secrets:resolve`.
+
 Tools: `testlease_list_pools`, `testlease_pool_status`, `testlease_acquire`, `testlease_get_lease`,
 `testlease_renew`, `testlease_release`, `testlease_lease_events`, and — only when the operator
 enables it — `testlease_quarantine`. Read-only resources: `testlease://pools`,
@@ -377,27 +400,40 @@ those runs, not projections. CI repeats them on Linux with Node 22 and 24.
 Docker: the production bundle was validated locally with `pnpm deploy`; the image itself was built
 and smoke-tested by CI on ubuntu (health check, 401 without token, 200 with token).
 
+## Operating it (v0.2)
+
+- **Reload without restart:** `testlease reload` (or `kill -HUP`, or `POST /v1/config/reload`)
+  validates the file and applies new pools, resources and tokens atomically; waiters are served
+  from new resources immediately. Invalid files are rejected and nothing changes.
+- **Restart-proof clients:** the TypeScript client retries acquisitions through
+  `SERVER_SHUTTING_DOWN` and connection failures within the caller's wait budget, reusing the
+  idempotency key — a Playwright run survives a server restart.
+- **Team isolation:** tokens can carry a `pools` allow-list; everything outside it is `FORBIDDEN`.
+- **History:** heartbeats are counted on the lease (`renewCount`) instead of one event each;
+  events and ended leases are pruned after `history.retention` (30 days).
+- **Observability:** `GET /metrics` (Prometheus text), `GET /v1/leases` + `testlease leases`,
+  `GET /openapi.json`, a monotonic server clock (`wallClockDriftMs` in `/healthz`).
+- **Any language:** `examples/pytest` is a stdlib-only Python client and fixture; CI runs it with
+  4 xdist workers against 3 accounts.
+
 ## Known limitations
 
 - One server per SQLite database. No cross-server fairness, no HA.
 - Waiting is bounded by `server.maxWait` (10 min default) per request; clients may loop.
-- `LEASE_RENEWED` events are recorded for every heartbeat; at TTL/3 intervals this is small,
-  but a very short TTL on many resources grows the event table quickly. No event retention job yet.
-- Configuration is read at startup; changing pools requires a restart (active leases survive it).
+- `server.host`, `server.port` and `server.db` changes still need a restart.
 - `testlease exec` redaction is best effort (exact-value substring replacement).
 - Only the `env:` secret provider exists.
 - Playwright's global `workers` setting caps per-project workers; with more workers than resources
   the extra workers wait inside fixture setup and Playwright does not rebalance their tests.
-- Docker image build was not executed on the reference machine (no Docker available); it is
-  exercised in CI.
+- Long-poll acquisitions behind proxies with short idle timeouts may need `waitTimeoutMs` below
+  the proxy limit; the client's retry with the same `clientRequestId` keeps that safe but loses
+  the queue position.
 
 ## Roadmap
 
-- v0.2: event retention/compaction, `testlease leases` listing with filters, PostgreSQL store
-  behind the existing store interface (only if SQLite proves limiting), Vault/AWS secret
-  resolvers, hot configuration reload, per-pool acquisition metrics (`/metrics`, small).
-- Later: Cypress / WebdriverIO / pytest adapters (the HTTP recipe is in
-  [docs/adapters.md](docs/adapters.md)), lease tokens as an optional stronger ownership proof.
+- v0.3: optional per-lease tokens (ADR-0014), PostgreSQL store behind the existing store
+  interface (only if SQLite proves limiting), Vault/AWS secret resolvers, Cypress / WebdriverIO
+  adapters built on [docs/adapters.md](docs/adapters.md).
 
 Out of scope on purpose: dashboards, SaaS, billing, Kubernetes operators, multi-region consensus,
 AI failure diagnosis, dynamic account creation.

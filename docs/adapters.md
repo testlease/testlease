@@ -64,8 +64,11 @@ See `docs/exec.md` for the trust boundary.
   parallel group + spec index.
 - **WebdriverIO**: `onWorkerStart`/`onWorkerEnd` hooks for worker scope; `beforeTest`/`afterTest`
   for test scope.
-- **pytest / JUnit**: a session- or class-scoped fixture / extension using the HTTP API, or simply
-  wrap the runner in `testlease exec`.
+- **pytest**: `examples/pytest` contains a ~100-line standard-library client and a session-scoped
+  `buyer` fixture (one account per pytest process / xdist worker, heartbeat in a daemon thread).
+  CI runs it with `-n 4` against three accounts.
+- **JUnit / others**: the same three calls with any HTTP client, or simply wrap the runner in
+  `testlease exec`.
 - **Newman / k6 / shell**: `testlease exec` and read `TESTLEASE_META_*` / `TESTLEASE_SECRET_*`.
 
 Contributions of adapters are welcome; keep them thinner than the engine and reuse the HTTP

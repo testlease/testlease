@@ -33,6 +33,8 @@ export const ErrorCodes = {
   SERVER_SHUTTING_DOWN: 'SERVER_SHUTTING_DOWN',
   /** Unknown route. */
   NOT_FOUND: 'NOT_FOUND',
+  /** A configuration reload was requested but the new configuration is invalid. */
+  CONFIG_INVALID: 'CONFIG_INVALID',
   /** Client-side: the server could not be reached (connection refused, DNS, reset). */
   UNAVAILABLE: 'UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
@@ -62,6 +64,7 @@ export const errorHttpStatus: Record<ErrorCode, number> = {
   SECRET_RESOLUTION_FAILED: 500,
   SERVER_SHUTTING_DOWN: 503,
   NOT_FOUND: 404,
+  CONFIG_INVALID: 422,
   UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 };

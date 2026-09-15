@@ -9,6 +9,8 @@ export interface ResolvedToken {
   /** sha256 of the token value; the plaintext is dropped after hashing. */
   hash: Buffer;
   scopes: Scope[];
+  /** Pool allow-list; null = every pool. */
+  pools: string[] | null;
 }
 
 export interface AuthContext {
@@ -16,11 +18,30 @@ export interface AuthContext {
   /** Token name, or `local` in insecure-local mode. Becomes `lease.principal`. */
   principal: string;
   scopes: ReadonlySet<Scope>;
+  /** Pools this identity may use; null = all. */
+  pools: ReadonlySet<string> | null;
 }
 
 export interface Authenticator {
   mode: AuthMode;
   authenticate(authorizationHeader: string | undefined): AuthContext | null;
+}
+
+/** Authenticator whose underlying token set can be replaced at runtime (configuration reload). */
+export class SwappableAuthenticator implements Authenticator {
+  private current: Authenticator;
+  constructor(initial: Authenticator) {
+    this.current = initial;
+  }
+  get mode(): AuthMode {
+    return this.current.mode;
+  }
+  authenticate(header: string | undefined): AuthContext | null {
+    return this.current.authenticate(header);
+  }
+  swap(next: Authenticator): void {
+    this.current = next;
+  }
 }
 
 function hashToken(token: string): Buffer {
@@ -38,7 +59,12 @@ export async function resolveTokens(
     if (value.length < 16) {
       throw new Error(`auth.tokens[${t.name}]: resolved token must be at least 16 characters`);
     }
-    out.push({ name: t.name, hash: hashToken(value), scopes: [...t.scopes] });
+    out.push({
+      name: t.name,
+      hash: hashToken(value),
+      scopes: [...t.scopes],
+      pools: t.pools ? [...t.pools] : null,
+    });
   }
   return out;
 }
@@ -49,6 +75,7 @@ export function createAuthenticator(tokens: ResolvedToken[]): Authenticator {
       mode: 'insecure-local',
       principal: 'local',
       scopes: new Set(ALL_SCOPES),
+      pools: null,
     };
     return { mode: 'insecure-local', authenticate: () => local };
   }
@@ -65,7 +92,12 @@ export function createAuthenticator(tokens: ResolvedToken[]): Authenticator {
         if (timingSafeEqual(presented, token.hash)) matched = token;
       }
       if (!matched) return null;
-      return { mode: 'token', principal: matched.name, scopes: new Set(matched.scopes) };
+      return {
+        mode: 'token',
+        principal: matched.name,
+        scopes: new Set(matched.scopes),
+        pools: matched.pools ? new Set(matched.pools) : null,
+      };
     },
   };
 }

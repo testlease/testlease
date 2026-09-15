@@ -71,6 +71,7 @@ describe('lease environment', () => {
       createdAt: 0,
       expiresAt: 1000,
       lastHeartbeatAt: 0,
+      renewCount: 0,
     });
     const env = buildLeaseEnv(lease, { password: 'pw' }, 'TESTLEASE', 'http://h');
     expect(env).toEqual({

@@ -57,8 +57,16 @@ export interface LeaseRow {
   createdAt: number;
   expiresAt: number;
   lastHeartbeatAt: number;
+  renewCount: number;
   endedAt: number | null;
   endReason: LeaseEndReason | null;
+}
+
+export interface LeaseFilter {
+  state?: LeaseState;
+  pool?: string;
+  owner?: string;
+  limit: number;
 }
 
 export interface EventRow {

@@ -93,6 +93,17 @@ CREATE INDEX lease_events_lease ON lease_events(lease_id, seq);
 CREATE INDEX lease_events_resource ON lease_events(resource_id, seq);
 `,
   },
+  {
+    version: 2,
+    name: 'renew-count-and-history-indexes',
+    up: `
+-- Heartbeats are counted on the lease instead of producing one event each (v0.2).
+ALTER TABLE leases ADD COLUMN renew_count INTEGER NOT NULL DEFAULT 0;
+-- History retention sweeps by time.
+CREATE INDEX lease_events_at ON lease_events(at);
+CREATE INDEX leases_state_ended ON leases(state, ended_at);
+`,
+  },
 ];
 
 export interface MigrationResult {

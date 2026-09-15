@@ -22,7 +22,7 @@ describe('REST API (insecure-local mode)', () => {
       status: 'ok',
       name: 'testlease',
       auth: { mode: 'insecure-local' },
-      db: { schemaVersion: 1 },
+      db: { schemaVersion: 2 },
     });
     const who = await ts.client().whoami();
     expect(who.principal).toBe('local');
@@ -61,11 +61,8 @@ describe('REST API (insecure-local mode)', () => {
     ).toBe('already_released');
 
     const events = await client.listLeaseEvents(res.lease.leaseId);
-    expect(events.events.map((e) => e.type)).toEqual([
-      'LEASE_ACQUIRED',
-      'LEASE_RENEWED',
-      'LEASE_RELEASED',
-    ]);
+    expect(events.events.map((e) => e.type)).toEqual(['LEASE_ACQUIRED', 'LEASE_RELEASED']);
+    expect(released.lease.renewCount).toBe(1);
   });
 
   it('returns structured errors with stable codes', async () => {

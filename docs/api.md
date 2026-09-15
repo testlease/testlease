@@ -124,6 +124,15 @@ is idempotent.
 `RESOURCE_QUARANTINED`, `RESOURCE_RESTORED`, `ACQUIRE_TIMEOUT`, `LEASE_SECRETS_RESOLVED`.
 `seq` is a global monotonic sequence; for each resource, `LEASE_ACQUIRED` strictly alternates with
 `LEASE_RELEASED`/`LEASE_EXPIRED` — the tests use exactly this property to prove no overlap.
+Since v0.2 heartbeats increment `renewCount` on the lease instead of producing `LEASE_RENEWED`
+events (unless the TTL changes or `history.recordRenewals` is on); events and ended leases older
+than `history.retention` are pruned.
+
+## Client retry semantics
+
+`SERVER_SHUTTING_DOWN` (503) and connection failures are retryable: the TypeScript client retries
+acquisitions with backoff until the caller's `waitTimeoutMs` budget is spent, reusing the same
+`clientRequestId`, so a server restart during a wait is invisible to the test.
 
 ## Limits
 

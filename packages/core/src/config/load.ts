@@ -90,10 +90,19 @@ export function validateConfig(raw: unknown, source = '<inline>'): LoadedConfig 
     throw new ConfigError(`Invalid configuration in ${source}`, problems);
   }
 
+  for (const token of parsed.data.auth.tokens) {
+    for (const poolName of token.pools ?? []) {
+      if (!pools[poolName]) {
+        warnings.push(`auth.tokens[${token.name}].pools references unknown pool "${poolName}"`);
+      }
+    }
+  }
+
   const config: TestLeaseConfig = {
     server: parsed.data.server,
     auth: parsed.data.auth,
     mcp: parsed.data.mcp,
+    history: parsed.data.history,
     pools,
   };
   return { config, warnings, source };

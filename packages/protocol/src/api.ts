@@ -1,9 +1,12 @@
 import type {
   AcquireRequest,
   AcquireResponse,
+  ConfigReloadResponse,
   EventsResponse,
   HealthResponse,
   LeaseView,
+  ListLeasesQuery,
+  ListLeasesResponse,
   PoolDetail,
   PoolSummary,
   QuarantineRequest,
@@ -46,6 +49,13 @@ export interface TestLeaseApi {
   restoreResource(resourceId: string, opts?: CallOptions): Promise<RestoreResponse>;
   listLeaseEvents(leaseId: string, opts?: CallOptions): Promise<EventsResponse>;
   listResourceEvents(resourceId: string, opts?: CallOptions): Promise<EventsResponse>;
+  /** Lists leases (newest first). Not exposed to MCP identities by design. */
+  listLeases(query?: ListLeasesQuery, opts?: CallOptions): Promise<ListLeasesResponse>;
+}
+
+/** Operator-only operations, separate from the leasing contract adapters implement. */
+export interface AdminApi {
+  reloadConfig(opts?: CallOptions): Promise<ConfigReloadResponse>;
 }
 
 /**

@@ -148,6 +148,25 @@ export function registerWriteCommands(program: Command, getCtx: () => CliContext
     });
 
   program
+    .command('reload')
+    .description(
+      'Re-read the server configuration file without restarting (requires resource:admin)',
+    )
+    .action(async () => {
+      const ctx = getCtx();
+      const res = await ctx.client().reloadConfig();
+      if (ctx.out.opts.json) return ctx.out.json(res);
+      ctx.out.line(
+        `${ctx.out.paint('green', 'Configuration reloaded')} (#${res.reloads}): ${res.pools} pool(s), ${res.resources} resource(s); registered=${res.registered.length} updated=${res.updated.length} disabled=${res.disabled.length} enabled=${res.enabled.length}`,
+      );
+      for (const id of res.registered) ctx.out.line(`  + ${id}`);
+      for (const id of res.updated) ctx.out.line(`  ~ ${id}`);
+      for (const id of res.disabled) ctx.out.line(`  - ${id}`);
+      for (const id of res.enabled) ctx.out.line(`  ↺ ${id}`);
+      for (const w of res.warnings) ctx.out.line(ctx.out.paint('yellow', `  warning: ${w}`));
+    });
+
+  program
     .command('restore <resource-id>')
     .description('Restore a quarantined resource (requires resource:admin)')
     .action(async (resourceId: string) => {

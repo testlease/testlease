@@ -26,10 +26,18 @@ auth:
     - name: agent # an MCP identity: no secrets:resolve
       token: env:TESTLEASE_TOKEN_AGENT
       scopes: [lease:read, lease:write, pool:read]
+    - name: payments-team # restricted to specific pools (v0.2)
+      token: env:TESTLEASE_TOKEN_PAYMENTS
+      scopes: [lease:read, lease:write, pool:read, secrets:resolve]
+      pools: [premium-buyers, payment-tenants]
 
 mcp:
   http: true # serve MCP at /mcp on this server
   allowQuarantine: false # register testlease_quarantine for agents
+
+history: # v0.2
+  retention: 30d # events and ended leases older than this are pruned (active leases never)
+  recordRenewals: false # true = one LEASE_RENEWED event per heartbeat (renewCount is always kept)
 
 pools:
   premium-buyers:

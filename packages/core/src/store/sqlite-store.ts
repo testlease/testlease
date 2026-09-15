@@ -6,7 +6,14 @@ import type {
   Tags,
 } from '@testlease/protocol';
 import type { SqliteDatabase } from '../db/database.js';
-import type { EventRow, LeaseRow, PoolRow, ResourceRow, ResourceSnapshot } from './rows.js';
+import type {
+  EventRow,
+  LeaseFilter,
+  LeaseRow,
+  PoolRow,
+  ResourceRow,
+  ResourceSnapshot,
+} from './rows.js';
 
 /* Raw row shapes as returned by better-sqlite3 (snake_case). */
 interface RawPool {
@@ -49,6 +56,7 @@ interface RawLease {
   created_at: number;
   expires_at: number;
   last_heartbeat_at: number;
+  renew_count: number;
   ended_at: number | null;
   end_reason: LeaseEndReason | null;
 }
@@ -105,6 +113,7 @@ const mapLease = (r: RawLease): LeaseRow => ({
   createdAt: r.created_at,
   expiresAt: r.expires_at,
   lastHeartbeatAt: r.last_heartbeat_at,
+  renewCount: r.renew_count,
   endedAt: r.ended_at,
   endReason: r.end_reason,
 });
@@ -243,8 +252,14 @@ export class SqliteStore {
         VALUES (@id, @resourceId, @pool, @owner, @principal, 'ACTIVE', @clientRequestId, @purpose, @contextJson,
           @snapshotJson, @ttlMs, @createdAt, @expiresAt, @createdAt)`),
       renewLease: db.prepare(`
-        UPDATE leases SET expires_at = @expiresAt, last_heartbeat_at = @now, ttl_ms = @ttlMs
+        UPDATE leases SET expires_at = @expiresAt, last_heartbeat_at = @now, ttl_ms = @ttlMs,
+          renew_count = renew_count + 1
         WHERE id = @id AND state = 'ACTIVE'`),
+      pruneEvents: db.prepare(`
+        DELETE FROM lease_events WHERE at < @before
+          AND (lease_id IS NULL OR lease_id NOT IN (SELECT id FROM leases WHERE state = 'ACTIVE'))`),
+      pruneEndedLeases: db.prepare(`
+        DELETE FROM leases WHERE state <> 'ACTIVE' AND ended_at IS NOT NULL AND ended_at < @before`),
       endLease: db.prepare(`
         UPDATE leases SET state = @state, ended_at = @now, end_reason = @reason
         WHERE id = @id AND state = 'ACTIVE'`),
@@ -454,6 +469,33 @@ export class SqliteStore {
 
   listLeasesForResource(resourceId: string, limit = 50): LeaseRow[] {
     return (this.stmts.listLeasesForResource.all(resourceId, limit) as RawLease[]).map(mapLease);
+  }
+
+  /** Filtered lease listing, newest first. Built per call; the filter shape is small and bounded. */
+  listLeases(filter: LeaseFilter): LeaseRow[] {
+    const where: string[] = [];
+    const params: Record<string, unknown> = { limit: filter.limit };
+    if (filter.state) {
+      where.push('state = @state');
+      params.state = filter.state;
+    }
+    if (filter.pool) {
+      where.push('pool = @pool');
+      params.pool = filter.pool;
+    }
+    if (filter.owner) {
+      where.push('owner = @owner');
+      params.owner = filter.owner;
+    }
+    const sql = `SELECT * FROM leases${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, id DESC LIMIT @limit`;
+    return (this.db.prepare(sql).all(params) as RawLease[]).map(mapLease);
+  }
+
+  /** Deletes events and ended leases older than `before`. Active leases and their events are kept. */
+  pruneHistory(before: number): { events: number; leases: number } {
+    const events = this.stmts.pruneEvents.run({ before }).changes;
+    const leases = this.stmts.pruneEndedLeases.run({ before }).changes;
+    return { events, leases };
   }
 
   // ---- events ------------------------------------------------------------

@@ -1,7 +1,13 @@
 import type { AddressInfo } from 'node:net';
 import { serve, type ServerType } from '@hono/node-server';
 import { ConfigError, type Logger, type TestLeaseEngine } from '@testlease/core';
-import { createAuthenticator, isLoopbackHost, resolveTokens, type Authenticator } from './auth.js';
+import {
+  createAuthenticator,
+  isLoopbackHost,
+  resolveTokens,
+  SwappableAuthenticator,
+  type Authenticator,
+} from './auth.js';
 import { createApp, type TestLeaseApp } from './app.js';
 
 export interface StartServerOptions {
@@ -11,7 +17,7 @@ export interface StartServerOptions {
   host?: string;
   port?: number;
   /** Mount additional routes (e.g. the MCP endpoint) before the server starts listening. */
-  extend?: (app: TestLeaseApp) => void | Promise<void>;
+  extend?: (app: TestLeaseApp, ctx: { authenticator: Authenticator }) => void | Promise<void>;
 }
 
 export interface RunningServer {
@@ -20,6 +26,8 @@ export interface RunningServer {
   port: number;
   authMode: Authenticator['mode'];
   app: TestLeaseApp;
+  /** Rebuilds the token set from `engine.config` (after a configuration reload). */
+  reloadAuth(): Promise<void>;
   /**
    * Graceful shutdown: stop accepting connections, fail waiting acquisitions with
    * SERVER_SHUTTING_DOWN, close the database. Active leases are intentionally kept.
@@ -56,7 +64,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
   const { engine, logger } = options;
   const host = options.host ?? engine.config.server.host;
   const port = options.port ?? engine.config.server.port;
-  const authenticator = await createAuthenticatorFromConfig(engine);
+  const authenticator = new SwappableAuthenticator(await createAuthenticatorFromConfig(engine));
   assertSafeBinding(
     host,
     engine.config.auth.tokens.length,
@@ -75,7 +83,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     logger,
     bodyLimitBytes: engine.config.server.requestBodyLimitBytes,
   });
-  await options.extend?.(app);
+  await options.extend?.(app, { authenticator });
 
   const server = await new Promise<ServerType>((resolve, reject) => {
     function onError(err: Error): void {
@@ -111,6 +119,25 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     port: address.port,
     authMode: authenticator.mode,
     app,
+    reloadAuth: async () => {
+      const next = await createAuthenticatorFromConfig(engine);
+      if (
+        next.mode === 'insecure-local' &&
+        authenticator.mode === 'token' &&
+        !isLoopbackHost(host)
+      ) {
+        logger.warn(
+          { event: 'auth.reload_refused' },
+          'reload removed all tokens on a non-loopback bind; keeping the previous token set',
+        );
+        return;
+      }
+      authenticator.swap(next);
+      logger.info(
+        { event: 'auth.reloaded', mode: next.mode, tokens: engine.config.auth.tokens.length },
+        'token set reloaded',
+      );
+    },
     close: (opts = {}) => {
       closing ??= (async () => {
         const timeoutMs = opts.timeoutMs ?? 5_000;

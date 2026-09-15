@@ -17,8 +17,22 @@ export interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   timeoutMs?: number;
-  /** Retry on connection errors. Only for calls that are safe to repeat. */
+  /** Retry on connection errors and 503s. Only for calls that are safe to repeat. */
   retry?: boolean;
+  /**
+   * Keep retrying (with backoff) until this epoch-ms deadline instead of a fixed attempt count.
+   * Used by acquisitions: a server restart mid-wait fails the waiter with SERVER_SHUTTING_DOWN,
+   * and the same clientRequestId makes the retry return the same lease if one was granted.
+   */
+  retryUntil?: number;
+  /** Return the raw response body instead of parsing JSON (text/plain endpoints). */
+  rawText?: boolean;
+}
+
+const RETRYABLE_CODES = new Set<string>([ErrorCodes.SERVER_SHUTTING_DOWN, ErrorCodes.UNAVAILABLE]);
+
+function isRetryableResponse(err: unknown): boolean {
+  return err instanceof TestLeaseError && RETRYABLE_CODES.has(err.code);
 }
 
 function isConnectionError(err: unknown): boolean {
@@ -75,18 +89,26 @@ export class HttpTransport {
   }
 
   async request<T>(req: RequestOptions): Promise<T> {
-    const attempts = req.retry ? this.options.retries + 1 : 1;
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      if (attempt > 0) await sleep(Math.min(100 * 2 ** (attempt - 1), 1000), req.signal);
+    const maxAttempts = req.retry ? this.options.retries + 1 : 1;
+    let attempt = 0;
+    for (;;) {
+      if (attempt > 0) await sleep(Math.min(250 * 2 ** (attempt - 1), 2_000), req.signal);
       try {
         return await this.once<T>(req);
       } catch (err) {
-        lastErr = err;
-        if (!isConnectionError(err) || req.signal?.aborted) throw this.wrap(err);
+        attempt++;
+        const retryable =
+          req.retry && (isConnectionError(err) || isRetryableResponse(err)) && !req.signal?.aborted;
+        const budgetLeft =
+          req.retryUntil !== undefined ? Date.now() < req.retryUntil : attempt < maxAttempts;
+        if (!retryable || !budgetLeft) throw this.wrap(err);
       }
     }
-    throw this.wrap(lastErr);
+  }
+
+  /** Like `request` but returns the raw body (for text/plain endpoints such as /metrics). */
+  async requestText(req: RequestOptions): Promise<string> {
+    return this.request<string>({ ...req, rawText: true });
   }
 
   private async once<T>(req: RequestOptions): Promise<T> {
@@ -108,6 +130,7 @@ export class HttpTransport {
       signal: AbortSignal.any(signals),
     });
     const text = await res.text();
+    if (req.rawText && res.ok) return text as unknown as T;
     let parsed: unknown = undefined;
     if (text) {
       try {

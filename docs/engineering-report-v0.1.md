@@ -148,7 +148,37 @@ requests so the changesets release PR can be opened.
   (`publish-script`, `pr-title`, `commit-message`, `github-token`), which the workflow now uses. The
   Docker job can also be dispatched manually with `image_version`.
 
-## Postponed to v0.2
+## v0.2.0 (2026-09-15) — operate without restarts, survive them
+
+Built after an honest self-review of v0.1 (see the "Remaining limitations" above); scope kept to
+the items with the highest value/risk ratio.
+
+| Change                                                                                                                                                          | Evidence                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client retries acquisitions through `SERVER_SHUTTING_DOWN` and connection failures within the caller's wait budget, same `clientRequestId`                      | reproduction script and integration test: waiter gets 503, two `ECONNREFUSED`, re-queues on the restarted server (same port) and receives the lease once the holder releases; Playwright runs inherit this |
+| Monotonic server clock (`MonotonicClock`), `wallClockDriftMs` in `/healthz`                                                                                     | unit test: ±1–2 h wall-clock jumps do not move `now()`                                                                                                                                                     |
+| Configuration reload (`SIGHUP`, `testlease reload`, `POST /v1/config/reload`), tokens included, invalid files rejected                                          | core + HTTP + CLI tests: new resource served to an existing waiter, new token usable, duplicate-id file rejected with `CONFIG_INVALID`, `server.port` change reported as a warning                         |
+| Pool allow-list on tokens (`pools: [...]`) enforced in the in-process API (REST and MCP alike)                                                                  | core + HTTP tests: FORBIDDEN by pool name and through lease/resource ids; `whoami.pools`                                                                                                                   |
+| Heartbeats counted on the lease (`renewCount`), `LEASE_RENEWED` only on TTL change or opt-in; history retention (30 d) for events and ended leases; migration 2 | unit tests incl. v1→v2 upgrade of a populated database and a month of renewals on a lease that must not be pruned                                                                                          |
+| `GET /v1/leases` + `testlease leases`, `GET /metrics` (Prometheus text), `GET /openapi.json`                                                                    | HTTP tests; a test asserts every registered route is documented and vice versa                                                                                                                             |
+| `examples/pytest`: stdlib-only Python client + session fixture                                                                                                  | run locally with pytest-xdist (`-n 4`): each worker held exactly one account; CI job added                                                                                                                 |
+
+Totals after v0.2: **129 tests in 16 files, all passing (9.2 s)**; lint, typecheck, format clean;
+coverage thresholds unchanged and passing.
+
+Findings while building v0.2: exact-text patching after Prettier reformatting silently failed
+twice more (the `acquire` retry deadline and the `whoami` pool list were not applied until a
+reproduction showed three attempts and a missing field). Patches are now anchored on exact
+current text and asserted. The v0.1 test that expected a waiter to die with `SERVER_SHUTTING_DOWN`
+on restart was updated: the client now retries, and with the server returning on another port the
+truthful final error is `UNAVAILABLE`.
+
+## Deferred to v0.3
+
+Optional per-lease tokens (ADR-0014), PostgreSQL store (only on evidence of need), Vault/AWS
+resolvers, Cypress/WebdriverIO adapters, chunked long-polls for proxy environments.
+
+## Postponed to v0.2 (original list, kept for the record)
 
 Event retention, `testlease leases` listing/filtering, hot config reload, PostgreSQL store behind
 the existing store interface (only on evidence of need), Vault/AWS resolvers, small `/metrics`,

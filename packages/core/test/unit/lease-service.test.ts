@@ -176,9 +176,10 @@ describe('LeaseService state machine', () => {
     expect(tooLong.code).toBe('INVALID_REQUEST');
     expect(tooLong.message).toMatch(/exceeds the maximum TTL 1h/);
 
+    // Heartbeats are counted on the lease; an event is only written when the TTL changes.
+    expect(engine.service.getLease(lease.leaseId).renewCount).toBe(1);
     expect(engine.service.listLeaseEvents(lease.leaseId).map((e) => e.type)).toEqual([
       'LEASE_ACQUIRED',
-      'LEASE_RENEWED',
     ]);
   });
 

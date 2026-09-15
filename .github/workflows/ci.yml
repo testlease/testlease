@@ -97,6 +97,41 @@ jobs:
           path: examples/playwright/test-results
           retention-days: 7
 
+  pytest-example:
+    name: pytest example (framework independence)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pip install pytest pytest-xdist
+      - name: Run pytest with 4 workers against 3 accounts
+        env:
+          BUYER_01_PASSWORD: x
+          BUYER_02_PASSWORD: y
+          BUYER_03_PASSWORD: z
+          TESTLEASE_URL: http://127.0.0.1:4749
+        run: |
+          set -e
+          node packages/cli/bin/testlease.js serve --config examples/playwright/testlease.yml --port 4749 --db :memory: --log-level warn --no-pretty &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4749/healthz >/dev/null && break || sleep 0.5; done
+          cd examples/pytest && USAGE_LOG=$PWD/usage.jsonl python -m pytest -q -n 4
+          node -e "
+            const lines = require('fs').readFileSync('usage.jsonl','utf8').trim().split('\n').map(JSON.parse);
+            const byOwner = new Map(); for (const l of lines) byOwner.set(l.owner, new Set([...(byOwner.get(l.owner)??[]), l.resourceId]));
+            for (const [o, rs] of byOwner) if (rs.size !== 1) { console.error('owner', o, 'used', [...rs]); process.exit(1); }
+            console.log('pytest workers:', byOwner.size, 'records:', lines.length);
+          "
+          node packages/cli/bin/testlease.js status --url http://127.0.0.1:4749 2>/dev/null || node ../../packages/cli/bin/testlease.js status
+
   coverage:
     name: coverage thresholds
     runs-on: ubuntu-latest

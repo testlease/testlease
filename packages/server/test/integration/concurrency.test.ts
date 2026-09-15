@@ -188,19 +188,21 @@ describe('HTTP concurrency', () => {
         tags: { region: 'be' },
         heartbeat: false,
       });
+      // The waiter has a short budget: since v0.2 the client retries through the shutdown, and this
+      // server comes back on a *different* port, so the honest final answer is UNAVAILABLE.
       const waiting = ts
-        .client({ owner: 'gha-9/w2', retries: 0 })
+        .client({ owner: 'gha-9/w2', requestTimeoutMs: 1_000 })
         .acquire({
           pool: 'buyers',
           owner: 'gha-9/w2',
           tags: { region: 'be' },
-          waitTimeoutMs: 20_000,
+          waitTimeoutMs: 1_500,
         })
         .catch((e: TestLeaseError) => e);
       await waitFor(() => ts!.engine.service.waitingCount === 1, 5000);
-      await ts.close(); // graceful: waiter gets SERVER_SHUTTING_DOWN, lease is kept
+      await ts.close(); // graceful: the waiter is failed with SERVER_SHUTTING_DOWN and retries until its budget ends
       const waitErr = (await waiting) as TestLeaseError;
-      expect(waitErr.code).toBe('SERVER_SHUTTING_DOWN');
+      expect(['SERVER_SHUTTING_DOWN', 'UNAVAILABLE']).toContain(waitErr.code);
 
       ts = await startTestServer({ configInput: buyersConfig(), dbPath });
       const again = ts.client({ owner: 'gha-9/w1' });

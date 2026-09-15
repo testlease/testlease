@@ -99,7 +99,7 @@ describe('migrations', () => {
       migrate(db);
       db.close();
       const again = openDatabase(path);
-      expect(currentSchemaVersion(again)).toBe(1);
+      expect(currentSchemaVersion(again)).toBe(Math.max(...migrations.map((m) => m.version)));
       expect(again.pragma('journal_mode', { simple: true })).toBe('wal');
       again.close();
     } finally {

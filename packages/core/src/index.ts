@@ -1,4 +1,10 @@
-export { type Clock, systemClock, ManualClock } from './clock.js';
+export {
+  type Clock,
+  systemClock,
+  ManualClock,
+  MonotonicClock,
+  type MonotonicClockOptions,
+} from './clock.js';
 export { newLeaseId, newRequestId } from './ids.js';
 export { type Logger, noopLogger } from './logger.js';
 export { parseDuration, formatDuration, formatClock } from './duration.js';
@@ -22,6 +28,7 @@ export {
   tokenConfigSchema,
   serverConfigSchema,
   mcpConfigSchema,
+  historyConfigSchema,
   LOG_LEVELS,
   type TestLeaseConfig,
   type PoolConfig,
@@ -29,6 +36,7 @@ export {
   type TokenConfig,
   type ServerConfig,
   type McpConfig,
+  type HistoryConfig,
   type ConfigInput,
 } from './config/schema.js';
 export {
@@ -58,7 +66,14 @@ export {
   type MigrationResult,
 } from './db/migrations.js';
 export { SqliteStore, type IntegrityProblem, type PoolStateCounts } from './store/sqlite-store.js';
-export type { PoolRow, ResourceRow, LeaseRow, EventRow, ResourceSnapshot } from './store/rows.js';
+export type {
+  PoolRow,
+  ResourceRow,
+  LeaseRow,
+  EventRow,
+  ResourceSnapshot,
+  LeaseFilter,
+} from './store/rows.js';
 export { matchesTags, knownTagValues } from './domain/matching.js';
 export { toLeaseView, toResourceView, toEventView } from './domain/views.js';
 export {
@@ -74,8 +89,14 @@ export {
   type LeaseServiceOptions,
   type AcquireOptions,
   type Actor,
+  type PoolCounters,
 } from './domain/lease-service.js';
-export { LocalTestLeaseApi, type LocalApiInfo, type LocalApiRuntime } from './domain/local-api.js';
+export {
+  LocalTestLeaseApi,
+  type LocalApiInfo,
+  type LocalApiRuntime,
+  type PrincipalOptions,
+} from './domain/local-api.js';
 export {
   createTestLease,
   loadRuntimeConfig,

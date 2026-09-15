@@ -22,6 +22,7 @@ function view(overrides: Partial<LeaseView> = {}): LeaseView {
     createdAt: 1_000,
     expiresAt: 4_000,
     lastHeartbeatAt: 1_000,
+    renewCount: 0,
     ...overrides,
   };
 }
