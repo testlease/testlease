@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [
+    [
+      "testlease",
+      "@testlease/core",
+      "@testlease/server",
+      "@testlease/client",
+      "@testlease/protocol",
+      "@testlease/mcp",
+      "@testlease/playwright"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@testlease/example-playwright",
+    "@testlease/example-vanilla",
+    "@testlease/example-mcp",
+    "testlease-monorepo"
+  ]
+}

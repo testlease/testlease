@@ -35,7 +35,7 @@ Persist everything in a single SQLite file, accessed through `better-sqlite3`:
 
 ## Consequences
 
-- One server process per database file (see ADR-0009). Several processes *can* write safely
+- One server process per database file (see ADR-0009). Several processes _can_ write safely
   (proved by the multi-process test), but waiting and fairness live in one process.
 - `better-sqlite3` ships prebuilt binaries for Linux (glibc and musl), macOS and Windows on
   Node 22/24, so no compiler is needed; pnpm must not run its `node-gyp` fallback

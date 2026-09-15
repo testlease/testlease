@@ -5,5 +5,11 @@
     "outDir": "./dist"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../protocol" }, { "path": "../core" }, { "path": "../client" }, { "path": "../server" }, { "path": "../mcp" }]
+  "references": [
+    { "path": "../protocol" },
+    { "path": "../core" },
+    { "path": "../client" },
+    { "path": "../server" },
+    { "path": "../mcp" }
+  ]
 }

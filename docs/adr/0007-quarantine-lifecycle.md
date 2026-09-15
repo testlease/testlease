@@ -33,5 +33,5 @@ next worker and produce a misleading failure there.
 ## Consequences
 
 - `testlease inspect` shows quarantine reasons inline; acquisition diagnostics list quarantined
-  resources so a timed-out worker can see *why* capacity shrank.
+  resources so a timed-out worker can see _why_ capacity shrank.
 - The Playwright adapter acquires a replacement for a worker whose resource was quarantined.

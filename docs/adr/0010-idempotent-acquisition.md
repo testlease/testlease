@@ -18,7 +18,7 @@ two resources with no record of the first.
   id is free again and yields a fresh lease.
 - The TypeScript client generates an id when the caller does not supply one, so every retry is
   safe by default.
-- Adapters use *meaningful* ids: the Playwright fixture uses `${owner}#${fixture}`, which lets a
+- Adapters use _meaningful_ ids: the Playwright fixture uses `${owner}#${fixture}`, which lets a
   replacement worker take over the lease its crashed predecessor still holds.
 
 ## Alternatives considered

@@ -45,6 +45,17 @@ export interface LeaseEvidence {
   quarantineReason?: string;
 }
 
+/** Shared by the client and adapters: a clear error instead of `undefined` for a missing secret. */
+export function requireSecret(secrets: Record<string, string>, name: string, known: string[], resourceId: string): string {
+  const value = secrets[name];
+  if (value === undefined) {
+    throw new Error(
+      `Resource "${resourceId}" has no secret named "${name}". Available: ${known.length ? known.join(', ') : 'none'}.`,
+    );
+  }
+  return value;
+}
+
 const TERMINAL_CODES = new Set([
   'LEASE_EXPIRED',
   'LEASE_NOT_ACTIVE',
@@ -201,6 +212,12 @@ export class Lease {
   async secrets(): Promise<Record<string, string>> {
     const res = await this.client.resolveSecrets(this.leaseId, { owner: this.owner });
     return res.secrets;
+  }
+
+  /** Resolves one secret by name, failing loudly when the resource does not define it. */
+  async secret(name: string): Promise<string> {
+    const all = await this.secrets();
+    return requireSecret(all, name, this.current.resource.secretKeys, this.resourceId);
   }
 
   evidence(): LeaseEvidence {

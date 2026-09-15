@@ -20,7 +20,7 @@ taken away.
   waiters promptly; correctness never depends on it.
 - Renewing or releasing after expiry fails with `LEASE_EXPIRED` and never resurrects the lease;
   the resource may already belong to someone else.
-- **Server shutdown and restart keep active leases.** Shutdown only fails *waiting*
+- **Server shutdown and restart keep active leases.** Shutdown only fails _waiting_
   acquisitions with `SERVER_SHUTTING_DOWN`. On startup overdue leases are expired.
 - The SDKs heartbeat automatically (interval = TTL/3 clamped to 1–60 s) with `unref()`ed timers,
   so a forgotten handle never keeps a process alive.

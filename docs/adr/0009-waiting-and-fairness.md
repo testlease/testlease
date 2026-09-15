@@ -22,7 +22,7 @@ worker that gives up (or dies while waiting) must not receive a resource nobody 
   `ACQUIRE_TIMEOUT` events. `POOL_EXHAUSTED` (wait = 0), `ACQUIRE_TIMEOUT` (waited) and
   `NO_MATCHING_RESOURCE` (nothing could ever match) are distinct codes.
 - **Topology contract:** one TestLease server, many clients, one SQLite database. Two servers
-  writing the same file stay *correct* (database-level guarantees) but do not share a queue, so
+  writing the same file stay _correct_ (database-level guarantees) but do not share a queue, so
   fairness is not defined across them. We do not claim multi-server support.
 
 ## Alternatives considered

@@ -1,0 +1,24 @@
+# docker compose -f docker/docker-compose.yml up
+services:
+  testlease:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: testlease/testlease:local
+    ports:
+      - '4747:4747'
+    environment:
+      # The container binds 0.0.0.0, so a token is required (the server refuses to start without one).
+      TESTLEASE_TOKEN: ${TESTLEASE_TOKEN:?set TESTLEASE_TOKEN to at least 16 characters}
+      TESTLEASE_LOG_LEVEL: info
+      # Secret references from testlease.yml are resolved from the container environment.
+      BUYER_01_PASSWORD: ${BUYER_01_PASSWORD:-}
+      BUYER_02_PASSWORD: ${BUYER_02_PASSWORD:-}
+      BUYER_03_PASSWORD: ${BUYER_03_PASSWORD:-}
+    volumes:
+      - ../examples/playwright/testlease.yml:/app/testlease.yml:ro
+      - testlease-data:/data
+    restart: unless-stopped
+
+volumes:
+  testlease-data:

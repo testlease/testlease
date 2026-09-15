@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: format, lint, typecheck, build, package validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - name: Validate publishable packages (pack + exports)
+        run: |
+          set -e
+          for p in packages/protocol packages/core packages/client packages/server packages/mcp packages/playwright packages/cli; do
+            (cd "$p" && pnpm pack --pack-destination /tmp/packs >/dev/null && echo "packed $p")
+          done
+          ls -la /tmp/packs
+          node scripts/check-packages.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            packages/*/dist
+            packages/cli/bin
+          retention-days: 1
+
+  unit-and-concurrency:
+    name: unit + SQLite migration + concurrency tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test:unit
+      - run: pnpm test:concurrency
+
+  integration-and-mcp:
+    name: HTTP integration, CLI e2e, MCP (stdio + Streamable HTTP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test:integration
+      - run: pnpm test:mcp
+
+  playwright:
+    name: Playwright adapter (real workers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @testlease/playwright exec playwright install --with-deps chromium
+      - run: pnpm test:playwright
+      - name: Dogfooding demo (8 workers, 3 accounts)
+        run: pnpm --filter @testlease/example-playwright demo
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-demo-results
+          path: examples/playwright/test-results
+          retention-days: 7
+
+  coverage:
+    name: coverage thresholds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm vitest run --project unit --project concurrency --project integration --project mcp --coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          retention-days: 7
+
+  docker:
+    name: Docker image builds and starts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          load: true
+          tags: testlease/testlease:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test the image
+        run: |
+          set -e
+          docker run -d --name tl -p 4747:4747 \
+            -e TESTLEASE_TOKEN=ci-token-value-0123456789abcdef \
+            -e BUYER_01_PASSWORD=x -e BUYER_02_PASSWORD=y -e BUYER_03_PASSWORD=z \
+            -v "$PWD/examples/playwright/testlease.yml:/app/testlease.yml:ro" testlease/testlease:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4747/healthz && break || sleep 1; done
+          curl -fsS http://127.0.0.1:4747/healthz | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS -H 'Authorization: Bearer ci-token-value-0123456789abcdef' http://127.0.0.1:4747/v1/pools | grep -q premium-buyers
+          # Unauthenticated must fail
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4747/v1/pools)" = "401"
+          docker stop tl && docker logs tl | tail -5

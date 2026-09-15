@@ -18,7 +18,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 for (let i = 0; i < iterations; i++) {
   try {
-    const res = service.tryAcquire({ pool: 'accounts', owner: `${processName}` , clientRequestId: `${processName}-${i}` });
+    const res = service.tryAcquire({
+      pool: 'accounts',
+      owner: `${processName}`,
+      clientRequestId: `${processName}-${i}`,
+    });
     if (!res) {
       denied++;
       await sleep(Math.random() * 2);
@@ -28,7 +32,9 @@ for (let i = 0; i < iterations; i++) {
     await sleep(Math.random() * 3);
     const check = store.getResource(res.lease.resourceId);
     if (check.activeLeaseId !== res.lease.leaseId) {
-      console.error(`OWNERSHIP LOST: ${processName} lease ${res.lease.leaseId} on ${res.lease.resourceId}, active is ${check.activeLeaseId}`);
+      console.error(
+        `OWNERSHIP LOST: ${processName} lease ${res.lease.leaseId} on ${res.lease.resourceId}, active is ${check.activeLeaseId}`,
+      );
       process.exitCode = 3;
     }
     const rel = service.release(res.lease.leaseId, { owner: processName });

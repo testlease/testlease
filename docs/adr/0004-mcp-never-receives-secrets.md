@@ -4,7 +4,7 @@
 
 ## Context
 
-An AI agent coordinating test runs needs to know *which* account it holds and *that* a
+An AI agent coordinating test runs needs to know _which_ account it holds and _that_ a
 password exists for it. It does not need the password: the test runner it launches resolves
 credentials with its own authorized token. Anything returned to a model ends up in prompts,
 logs and transcripts.
@@ -15,7 +15,7 @@ logs and transcripts.
   `SecretsApi` is a separate interface implemented only by the HTTP client and the in-process
   API; the MCP package cannot call it without a cast.
 - Every MCP result passes through **allow-list projections** (`sanitize.ts`) that copy named
-  fields only. They expose `availableSecretKeys` (names) and drop even secret *references*
+  fields only. They expose `availableSecretKeys` (names) and drop even secret _references_
   (`env:BUYER_01_PASSWORD`).
 - MCP identities never receive the `secrets:resolve` scope by default, and the MCP endpoint
   has no route that would use it.

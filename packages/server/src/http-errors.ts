@@ -1,4 +1,9 @@
-import { ErrorCodes, isTestLeaseError, type ErrorBody, type TestLeaseError } from '@testlease/protocol';
+import {
+  ErrorCodes,
+  isTestLeaseError,
+  type ErrorBody,
+  type TestLeaseError,
+} from '@testlease/protocol';
 import type { Logger } from '@testlease/core';
 
 export interface ErrorResponse {

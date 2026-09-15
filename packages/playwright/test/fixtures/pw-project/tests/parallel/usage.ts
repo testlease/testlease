@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import type { LeasedResource } from '../../../../dist/index.js';
+import type { LeasedResource } from '../../../../../dist/index.js';
 
 export async function useAccount(
   page: Page,
@@ -11,7 +11,7 @@ export async function useAccount(
   const start = Date.now();
   // Pretend to log in with the leased account: the page shows who is signed in.
   await page.setContent(
-    `<h1 id="who">${buyer.metadata.email as string}</h1><p id="pw">${buyer.secrets.password.length} chars</p>`,
+    `<h1 id="who">${buyer.metadata.email as string}</h1><p id="pw">${buyer.secret('password').length} chars</p>`,
   );
   await page.waitForTimeout(40 + Math.floor(Math.random() * 120));
   const who = await page.textContent('#who');

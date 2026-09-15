@@ -1,5 +1,10 @@
 import type { Metadata, Tags } from '@testlease/protocol';
-import type { Lease, LeaseEvidence, TestLeaseClient } from '@testlease/client';
+import {
+  requireSecret,
+  type Lease,
+  type LeaseEvidence,
+  type TestLeaseClient,
+} from '@testlease/client';
 
 export type LeaseScope = 'worker' | 'test';
 
@@ -101,6 +106,24 @@ export class LeasedResource {
   /** Resolved secret values (empty when `secrets: false`). Never attach these to reports. */
   get secrets(): Record<string, string> {
     return this.currentSecrets;
+  }
+
+  /**
+   * One resolved secret by name, typed `string`. Throws a clear error when the resource has no
+   * such secret or the fixture was configured with `secrets: false`.
+   */
+  secret(name: string): string {
+    if (!this.secretsResolved) {
+      throw new Error(
+        `Fixture "${this.fixture}" was configured with secrets: false; secret "${name}" is not available.`,
+      );
+    }
+    return requireSecret(
+      this.currentSecrets,
+      name,
+      this.current.resource.secretKeys,
+      this.resourceId,
+    );
   }
   /** True when the lease is no longer usable (quarantined, released or expired). */
   get ended(): boolean {

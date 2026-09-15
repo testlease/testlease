@@ -5,7 +5,7 @@
 ## Context
 
 Test runners recycle processes. A Playwright worker that crashes is replaced by a new process
-with a new PID but the same *parallel index*; a retried test may run in another worker. If
+with a new PID but the same _parallel index_; a retried test may run in another worker. If
 ownership were tied to a PID or a socket, the replacement could not continue and diagnostics
 would show meaningless numbers.
 
@@ -13,11 +13,11 @@ would show meaningless numbers.
 
 A lease records two identities with different purposes:
 
-- **`owner`** — a client-chosen, stable, *logical* identity such as
+- **`owner`** — a client-chosen, stable, _logical_ identity such as
   `gha-483-1/chromium/worker-2` (run id / project / worker slot) or `…/test-<testId>` for
-  test-scoped leases. It is for diagnostics and for protection against *accidental* misuse:
+  test-scoped leases. It is for diagnostics and for protection against _accidental_ misuse:
   renew/release/quarantine must present the same owner.
-- **`principal`** — the *authenticated* identity derived by the server from the API token
+- **`principal`** — the _authenticated_ identity derived by the server from the API token
   (token name), or `local` in insecure-local mode. Clients cannot choose it.
 
 Renew, release, quarantine and secret resolution require **principal AND owner** to match.
@@ -41,6 +41,6 @@ default) and `manual` (CLI / agents).
 ## Consequences
 
 - The Playwright adapter derives the owner from run id + project + `parallelIndex`, and uses
-  `${owner}#${fixture}` as `clientRequestId`, so a replacement worker *takes over* the still
+  `${owner}#${fixture}` as `clientRequestId`, so a replacement worker _takes over_ the still
   active lease of its crashed predecessor instead of waiting for the TTL (ADR-0010).
 - Diagnostics can say `owner=gha-483-1/chromium/worker-2` instead of `pid=48213`.

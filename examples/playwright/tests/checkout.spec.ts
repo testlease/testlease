@@ -5,7 +5,7 @@ import { login } from './shop.js';
 for (let i = 1; i <= 8; i++) {
   test('checkout scenario ' + i, async ({ page, buyer }, testInfo) => {
     const start = Date.now();
-    await login(page, { email: buyer.metadata.email as string, password: buyer.secrets.password });
+    await login(page, { email: buyer.metadata.email as string, password: buyer.secret('password') });
     await expect(page.locator('#who')).toHaveText(buyer.metadata.email as string);
     await page.click('#checkout');
     await expect(page.locator('#status')).toHaveText('Order placed');

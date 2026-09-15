@@ -17,7 +17,13 @@ export interface EvidenceOptions {
   refresh?: boolean;
 }
 
-export interface WithTestLeaseOptions<F extends Record<string, LeaseFixtureConfig>> {
+/**
+ * `F` is constrained homomorphically (`{ [K in keyof F]: LeaseFixtureConfig }`) instead of
+ * `Record<string, LeaseFixtureConfig>`: with an index-signature constraint TypeScript widens a
+ * fixtures literal containing expressions such as `cond ? { region } : {}` to an index signature,
+ * which made every fixture `LeasedResource | undefined` under noUncheckedIndexedAccess.
+ */
+export interface WithTestLeaseOptions<F extends { [K in keyof F]: LeaseFixtureConfig }> {
   /** Client options, or a factory (called once per worker). */
   client: TestLeaseClientOptions | (() => TestLeaseClient);
   fixtures: F;
@@ -82,7 +88,7 @@ function fixtureErrorMessage(name: string, cfg: LeaseFixtureConfig, err: unknown
 export function withTestLease<
   T extends object,
   W extends object,
-  F extends Record<string, LeaseFixtureConfig>,
+  F extends { [K in keyof F]: LeaseFixtureConfig },
 >(
   base: TestType<T, W>,
   options: WithTestLeaseOptions<F>,
@@ -96,7 +102,7 @@ export function withTestLease<
  * Builds the fixture definitions for `test.extend(...)`. Use this directly when you already
  * have your own `extend` chain.
  */
-export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureConfig>>(
+export function createTestLeaseFixtures<F extends { [K in keyof F]: LeaseFixtureConfig }>(
   options: WithTestLeaseOptions<F>,
 ): Record<string, unknown> {
   const evidenceOpts: EvidenceOptions | null =
@@ -154,6 +160,7 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
     return { result: { lease, reused, waitedMs }, secrets, secretsResolved };
   }
 
+  const fixtureConfigs = options.fixtures as unknown as Record<string, LeaseFixtureConfig>;
   const fixtures: Record<string, unknown> = {};
 
   fixtures.testleaseClient = [
@@ -175,7 +182,7 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
     { scope: 'worker' as const },
   ];
 
-  for (const [name, cfg] of Object.entries(options.fixtures)) {
+  for (const [name, cfg] of Object.entries(fixtureConfigs)) {
     const scope: LeaseScope = cfg.scope ?? 'worker';
     if (scope === 'worker') {
       fixtures[name] = [
@@ -294,7 +301,7 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
       // does not run against a dead resource.
       for (const [name, resource] of state.resources) {
         if (resource.scope !== 'worker' || !resource.ended) continue;
-        const cfg = options.fixtures[name]!;
+        const cfg = fixtureConfigs[name]!;
         const { result, secrets, secretsResolved } = await acquireFor(
           testleaseClient,
           name,

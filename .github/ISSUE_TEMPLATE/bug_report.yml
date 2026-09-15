@@ -1,0 +1,38 @@
+name: Bug report
+description: Something behaves differently from what the docs promise
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the exact error code/message (`error.code`) and, if relevant, `testlease events <lease-id>` output with secrets removed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal `testlease.yml`, the client/adapter code, and the sequence of calls. Concurrency bugs need the concurrent sequence, not a story.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      placeholder: testlease 0.1.0, node 22.14, macOS 15 / docker image tag
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core/leasing, server/API, client, cli, playwright, mcp, docker, docs]
+    validations:
+      required: true

@@ -7,7 +7,7 @@ server:
 pools:
   premium-buyers:
     description: Premium buyer accounts on the staging shop
-    defaultTtl: 2m        # a crashed worker frees its account within two minutes
+    defaultTtl: 2m # a crashed worker frees its account within two minutes
     maxTtl: 30m
     resources:
       - id: buyer-01

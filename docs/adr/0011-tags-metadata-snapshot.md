@@ -11,7 +11,7 @@ tags) and the running test must not have the ground move under it.
 
 ## Decision
 
-- **`tags`** (`Record<string,string>`, values coerced to strings) are the *only* matching
+- **`tags`** (`Record<string,string>`, values coerced to strings) are the _only_ matching
   surface. `acquire({ tags })` selects resources whose tags contain every requested pair.
 - **`metadata`** (`Record<string, string|number|boolean>`) is informational and public; it is
   returned to clients and shown in diagnostics but never matched.

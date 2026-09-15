@@ -1,4 +1,20 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const pkg = (name: string) => fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
+
+/**
+ * In-process tests import workspace packages from source so that coverage is attributed to
+ * `src`. Child processes spawned by the CLI, MCP-stdio and Playwright suites still run the
+ * built `dist` (that is the point of those suites), which V8 coverage cannot observe.
+ */
+const alias = {
+  '@testlease/protocol': pkg('protocol'),
+  '@testlease/core': pkg('core'),
+  '@testlease/client': pkg('client'),
+  '@testlease/server': pkg('server'),
+  '@testlease/mcp': pkg('mcp'),
+};
 
 const common = {
   globals: false,
@@ -7,13 +23,16 @@ const common = {
 };
 
 export default defineConfig({
+  resolve: { alias },
   test: {
     ...common,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
       include: ['packages/*/src/**/*.ts'],
-      exclude: ['packages/*/src/index.ts', 'packages/cli/src/**', 'packages/**/bin/**'],
+      // The CLI and the Playwright adapter run in spawned processes (covered end to end by
+      // their own suites, not measurable in-process).
+      exclude: ['packages/*/src/index.ts', 'packages/cli/src/**', 'packages/playwright/src/**', 'packages/**/bin/**'],
       thresholds: {
         lines: 80,
         functions: 80,
