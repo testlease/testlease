@@ -33,7 +33,7 @@ jobs:
           done
           ls -la /tmp/packs
           node scripts/check-packages.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: |
@@ -90,7 +90,7 @@ jobs:
       - run: pnpm test:playwright
       - name: Dogfooding demo (8 workers, 3 accounts)
         run: pnpm --filter @testlease/example-playwright demo
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-demo-results
@@ -145,7 +145,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm vitest run --project unit --project concurrency --project integration --project mcp --coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/lcov.info
