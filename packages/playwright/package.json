@@ -44,6 +44,8 @@
     "@playwright/test": ">=1.40.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "@testlease/core": "workspace:*",
+    "@testlease/server": "workspace:*"
   }
 }

@@ -42,6 +42,27 @@ importers:
         specifier: 5.0.1
         version: 5.0.1(@types/node@22.20.2)(@vitest/coverage-v8@5.0.1)(vite@8.3.0(@types/node@22.20.2)(yaml@2.9.1))
 
+  examples/playwright:
+    dependencies:
+      '@playwright/test':
+        specifier: 1.63.0
+        version: 1.63.0
+      '@testlease/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@testlease/playwright':
+        specifier: workspace:*
+        version: link:../../packages/playwright
+      testlease:
+        specifier: workspace:*
+        version: link:../../packages/cli
+
+  examples/vanilla:
+    dependencies:
+      '@testlease/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+
   packages/cli:
     dependencies:
       '@testlease/client':
@@ -125,6 +146,12 @@ importers:
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
+      '@testlease/core':
+        specifier: workspace:*
+        version: link:../core
+      '@testlease/server':
+        specifier: workspace:*
+        version: link:../server
 
   packages/protocol: {}
 

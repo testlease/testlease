@@ -1,0 +1,13 @@
+{
+  "name": "@testlease/example-vanilla",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Plain TypeScript client usage: acquire, heartbeat, release, quarantine",
+  "scripts": {
+    "start": "node --experimental-strip-types acquire-and-release.ts"
+  },
+  "dependencies": {
+    "@testlease/client": "workspace:*"
+  }
+}

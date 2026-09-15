@@ -46,7 +46,8 @@ export default tseslint.config(
     },
   },
   {
-    files: ['eslint.config.js'],
+    // Test fixture projects and examples import built artifacts; lint them without type info.
+    files: ['eslint.config.js', 'packages/playwright/test/fixtures/**/*.ts', 'examples/**/*.ts'],
     ...tseslint.configs.disableTypeChecked,
   },
   prettier,

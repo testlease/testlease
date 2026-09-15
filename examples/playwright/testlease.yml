@@ -1,0 +1,24 @@
+# Three shared premium-buyer accounts for a suite that runs with eight Playwright workers.
+server:
+  host: 127.0.0.1
+  port: 4747
+  db: ./.testlease/demo.db
+
+pools:
+  premium-buyers:
+    description: Premium buyer accounts on the staging shop
+    defaultTtl: 2m        # a crashed worker frees its account within two minutes
+    maxTtl: 30m
+    resources:
+      - id: buyer-01
+        tags: { region: nl, paymentMethod: ideal, tier: premium }
+        metadata: { email: buyer01@example.test }
+        secrets: { password: env:BUYER_01_PASSWORD }
+      - id: buyer-02
+        tags: { region: nl, paymentMethod: card, tier: premium }
+        metadata: { email: buyer02@example.test }
+        secrets: { password: env:BUYER_02_PASSWORD }
+      - id: buyer-03
+        tags: { region: be, paymentMethod: ideal, tier: premium }
+        metadata: { email: buyer03@example.test }
+        secrets: { password: env:BUYER_03_PASSWORD }
