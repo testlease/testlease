@@ -118,8 +118,15 @@ not-yet-built `dist/*.d.ts` (fixed with `paths` to source in the root tsconfig) 
 fixture project, which imports `dist` on purpose, is excluded from the root typecheck. Jobs:
 format/lint/typecheck/build/package validation; unit + concurrency on Node 22 and Node 24;
 HTTP integration + CLI e2e + MCP; Playwright with real Chromium plus the dogfooding demo;
-coverage thresholds; Docker build + smoke test. Dependabot opened six action/base-image bump PRs;
-its npm run failed because `engines.pnpm >=10` let it pick pnpm 11 — pinned to `^10`.
+coverage thresholds; Docker build + smoke test. Dependabot opened six action/base-image bump PRs. Its npm
+ecosystem run fails on Dependabot's side: it parses our pnpm constraint (`>=10 <11`, plus
+`packageManager: pnpm@10.26.0`) but still installs pnpm 11.17 and its helper subprocess crashes
+while processing `typescript`, `rimraf` and `@types/node`. Actions and Docker updates work.
+Left enabled so the failure stays visible; Renovate is the fallback if it persists.
+
+The repository was then transferred to the `testlease` organization (`testlease/testlease`,
+still private); org and repository settings were changed to allow GitHub Actions to create pull
+requests so the changesets release PR can be opened.
 
 ## Postponed to v0.2
 
