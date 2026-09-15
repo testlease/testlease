@@ -1,0 +1,117 @@
+# Engineering report — TestLease v0.1.0 (2026-09-15)
+
+A factual account of what was built, what was actually run, and what is left.
+
+## What was built
+
+| Package                 | Contents                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@testlease/protocol`   | wire types, 24 stable error codes, `TestLeaseApi` / `SecretsApi` (separate on purpose)                                                                                                                                                                                                                                                                                                                                        |
+| `@testlease/core`       | YAML config schema + validation, `env:` secret resolver behind an interface, SQLite store (WAL, `BEGIN IMMEDIATE`, STRICT tables, partial unique indexes), append-only migrations, `LeaseService` (atomic acquire, FIFO waiting with abort, TTL expiry in every write transaction + timer, renew/release/quarantine/restore, idempotency, per-lease resource snapshot), config sync, evidence events, acquisition diagnostics |
+| `@testlease/server`     | Hono REST API `/v1`, Bearer tokens (SHA-256 + `timingSafeEqual`), scopes, principal derivation, `force` gating, body limits, request logging, disconnect → waiter removal, graceful shutdown that keeps leases, refusal of unauthenticated non-loopback binds                                                                                                                                                                 |
+| `@testlease/client`     | `TestLeaseClient` (auto `clientRequestId`, connection retries, `UNAVAILABLE` hints) and `Lease` handle (unref'd heartbeat, release/quarantine, `secret()`, sanitized evidence)                                                                                                                                                                                                                                                |
+| `testlease` (CLI)       | `serve`, `validate`, `doctor`, `pools`, `status`, `inspect`, `lease`, `resource`, `events`, `whoami`, `acquire`, `renew`, `release`, `quarantine`, `quarantine-resource`, `restore`, `exec` (secrets in env, output redaction), `mcp` (stdio bridge)                                                                                                                                                                          |
+| `@testlease/playwright` | `withTestLease` worker/test-scoped fixtures, heartbeat, release, quarantine → replacement, takeover after worker restart, `testlease.json` evidence                                                                                                                                                                                                                                                                           |
+| `@testlease/mcp`        | MCP server on the official SDK v2 (spec 2026-07-28): 7 tools (+1 opt-in), 3 resources, annotations, stdio bridge, Streamable HTTP handler with per-token sessions and port-agnostic Host/Origin validation, allow-list projections                                                                                                                                                                                            |
+| Ops & OSS               | Dockerfile (alpine, `pnpm deploy`, tini, non-root, healthcheck), compose, CI (format/lint/typecheck/build/package validation, Node 22+24 matrix, 5 test projects, coverage thresholds, Docker smoke test), release workflow gated on changesets, Apache-2.0, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates, Dependabot, 12 ADRs, README + 7 docs, 3 example projects                                            |
+
+## What tests actually ran (reference machine: macOS, Node 22.14, pnpm 10.26)
+
+`pnpm build && pnpm test` — **115 tests in 14 files, all passing, 8.8 s**:
+
+| Vitest project | Tests | What it exercises                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| unit           | 71    | duration parsing, config validation, migrations + DB constraints, secret resolver, lease state machine (32 cases), waiting/fairness, config sync, resource snapshot, CLI redactor, client `Lease` handle with a fake client                                                                                                                                                               |
+| concurrency    | 12    | 50 concurrent acquirers / 5 resources; 200 synchronous `tryAcquire`; 10× same `clientRequestId`; retry while waiting; 10× concurrent release; crash recovery (real clock); healthy heartbeat (real clock); expiry without sweeper; quarantine under 40 concurrent acquirers; restart with file DB; 30 actors × 3 rounds on one resource; 8 OS processes × 150 attempts on one SQLite file |
+| integration    | 22    | REST API in insecure-local and token modes (15), CLI end-to-end against a CLI-started server (7)                                                                                                                                                                                                                                                                                          |
+| mcp            | 6     | real MCP clients over stdio (bridge process) and Streamable HTTP                                                                                                                                                                                                                                                                                                                          |
+| playwright     | 4     | real `playwright test` runs with Chromium headless shell 1243                                                                                                                                                                                                                                                                                                                             |
+
+Also run: coverage (`statements 88.16 %`, `branches 75.97 %`, `functions 88.10 %`, `lines 89.84 %`
+over in-process source; thresholds 80/70/80/80 and stricter domain thresholds pass), `pnpm lint`,
+`pnpm typecheck`, `pnpm format:check`, `scripts/check-packages.mjs` (7/7), `pnpm deploy` of the
+CLI package and a smoke run of the deployed binary, the `examples/playwright` demo.
+
+## Real concurrency results
+
+- **50 concurrent in-process acquisitions, 5 resources:** max 5 simultaneous holders, 0 overlaps at
+  application level, event log alternates strictly per resource, ≥40 waited; 226 ms.
+- **8 processes × 150 attempts on one SQLite file (built package):** 858 acquisitions, 342 denials,
+  0 overlaps, 0 ownership losses, integrity check clean; 1.1 s.
+- **50 independent HTTP clients, 5 resources, waiting:** 50 acquisitions, 0 overlap, 0 leaked
+  waiters, ≥40 waited; 352 ms.
+- **Cancellation:** 10 HTTP waiters, 7 aborted mid-wait, exactly the 3 live ones received leases,
+  0 ghost leases.
+- **TTL vs heartbeat:** 1 s TTL — unheartbeated lease expired and its resource was reclaimed;
+  300 ms heartbeat kept a lease alive through 2.5 s of continuous rival attempts (all denied).
+- **Restart:** live lease `ACTIVE`, overdue lease `EXPIRED`, quarantine kept; graceful shutdown
+  rejected a waiter with `SERVER_SHUTTING_DOWN` and the same owner+principal renewed/released after
+  the restart.
+
+## Real MCP results
+
+- stdio: `StdioClientTransport` spawned `testlease mcp --url …`; `listTools` returned exactly the 7
+  expected tools with correct `readOnlyHint`/`destructiveHint`; full workflow
+  (list → status → acquire → idempotent retry → get → renew → events → resources → error cases →
+  release → idempotent release) passed; every response scanned for 3 secret values and 4 secret
+  reference strings — none found. Abandoned bridge: lease expired after its 1 s TTL.
+- Streamable HTTP: same workflow as principal `agent`; unauthenticated `initialize` → 401;
+  another token presenting the session id → 403; another principal's release →
+  `LEASE_OWNERSHIP_MISMATCH`; `terminateSession` did not release (TTL did); `testlease_quarantine`
+  present only with `allowQuarantine` and annotated destructive.
+
+## Real Playwright results
+
+- **8 workers, 3 accounts, 24 tests** (adapter suite): 24 passed; usage log and event log both
+  show 0 overlapping use; 8 worker leases, ≥5 waited; 0 expirations; all accounts returned; 24
+  `testlease.json` attachments with no secret value or reference; all 8 workers seen.
+- **Dogfooding demo** (`examples/playwright`, `pnpm demo`): 24 passed in 6.4 s, 8 leases, 5 waited
+  (longest 2.6 s), 0 overlap, 0 leased/waiting after the run.
+- **Killed worker:** `SIGKILL` inside a test; lease never `RELEASED`; `EXPIRED` after its 3 s TTL;
+  resource `AVAILABLE`.
+- **Quarantine:** test 1 quarantined its account; test 2 in the same worker ran on a different
+  account with `reacquired: true` in evidence; pool showed 1 quarantined.
+- **Test scope:** 6 tests, 4 workers, 2 resources: 6 acquire + 6 release events.
+
+## Bugs discovered during implementation (all fixed, all with regression tests)
+
+1. **Secret leak in `testlease exec` redaction.** The stream transform held back the _raw_ tail
+   before redacting, so a secret straddling two chunks was emitted in clear. Found by the CLI e2e
+   assertion; reproduced manually; fixed by redacting the buffered text first. Regression:
+   `packages/cli/test/unit/redactor.test.ts` (exact chunk sequence).
+2. **Event ordering.** `RESOURCE_DISABLED` was recorded before `LEASE_RELEASED` when a
+   removed-from-config resource's lease ended. Reordered; the sync test asserts the sequence.
+3. **MCP Host validation.** The SDK transport's `allowedHosts` compared the full `Host` header
+   including the port, rejecting every request to a random-port server. Replaced with
+   port-agnostic Host/Origin validation in the handler (mirrors the official Hono middleware).
+4. **Playwright fixture typing.** `F extends Record<string, LeaseFixtureConfig>` let TypeScript
+   infer an index signature for fixture literals containing `cond ? {…} : {}`, making every
+   fixture `LeasedResource | undefined`. Fixed with a homomorphic constraint.
+5. **Playwright fixture signature.** A lint-driven rename of `({}, use, info)` to `(_args, …)`
+   made Playwright reject the fixture at load time ("First argument must use the object
+   destructuring pattern"). Restored with a documented lint exception.
+6. **Tooling:** listing `better-sqlite3` in pnpm's `onlyBuiltDependencies` triggered a
+   from-source `node-gyp` build (the package ships prebuilds and has no install script);
+   `ignoredBuiltDependencies` fixed it. Playwright's global `workers` default (50 % of cores)
+   silently capped the per-project `workers: 8` to 5 in the adapter test config.
+
+No race condition was found in the leasing engine itself in any run.
+
+## Remaining limitations
+
+- One server per SQLite database; no cross-server fairness or HA.
+- Configuration changes require a restart (leases survive it).
+- Every heartbeat writes a `LEASE_RENEWED` event; no retention/compaction job yet.
+- `exec` redaction is exact-substring only (documented trust boundary).
+- Only the `env:` secret provider.
+- The Docker image was not built on the reference machine (no Docker); the production bundle it
+  contains was validated with `pnpm deploy` and CI builds and smoke-tests the image.
+- Coverage numbers cover in-process code; the CLI and the Playwright adapter run in child
+  processes and are verified end to end but not measured.
+
+## Postponed to v0.2
+
+Event retention, `testlease leases` listing/filtering, hot config reload, PostgreSQL store behind
+the existing store interface (only on evidence of need), Vault/AWS resolvers, small `/metrics`,
+additional framework adapters (Cypress, WebdriverIO, pytest) built on `docs/adapters.md`, optional
+lease tokens as a stronger ownership proof, npm/Docker publishing (requires explicit authorization).
