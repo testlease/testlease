@@ -1,0 +1,46 @@
+{
+  "name": "@testlease/mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for TestLease (stdio and Streamable HTTP). Never exposes secret values.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/testlease/testlease.git",
+    "directory": "packages/mcp"
+  },
+  "keywords": [
+    "testlease",
+    "mcp",
+    "model-context-protocol",
+    "testing",
+    "lease"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@testlease/protocol": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@testlease/core": "workspace:*"
+  }
+}

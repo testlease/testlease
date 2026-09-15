@@ -1,0 +1,50 @@
+{
+  "name": "@testlease/server",
+  "version": "0.1.0",
+  "description": "TestLease HTTP server: versioned REST API, token auth, and MCP Streamable HTTP endpoint",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/testlease/testlease.git",
+    "directory": "packages/server"
+  },
+  "keywords": [
+    "testlease",
+    "testing",
+    "lease",
+    "resource-pool",
+    "server"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@modelcontextprotocol/hono": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@testlease/core": "workspace:*",
+    "@testlease/mcp": "workspace:*",
+    "@testlease/protocol": "workspace:*",
+    "hono": "4.13.8",
+    "pino": "10.3.1"
+  },
+  "devDependencies": {
+    "@testlease/client": "workspace:*"
+  }
+}

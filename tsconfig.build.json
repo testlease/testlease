@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/protocol" },
+    { "path": "packages/core" },
+    { "path": "packages/client" },
+    { "path": "packages/mcp" },
+    { "path": "packages/server" },
+    { "path": "packages/playwright" },
+    { "path": "packages/cli" }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "@testlease/playwright",
+  "version": "0.1.0",
+  "description": "Playwright fixtures for TestLease: worker- and test-scoped exclusive resources with heartbeat, release and sanitized evidence",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/testlease/testlease.git",
+    "directory": "packages/playwright"
+  },
+  "keywords": [
+    "testlease",
+    "playwright",
+    "fixtures",
+    "testing",
+    "lease",
+    "resource-pool"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@testlease/client": "workspace:*",
+    "@testlease/protocol": "workspace:*"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

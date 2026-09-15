@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+.testlease/
+examples/playwright/test-results/
+examples/playwright/playwright-report/
+examples/playwright/blob-report/
+.env
+.env.local

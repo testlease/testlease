@@ -1,0 +1,50 @@
+{
+  "name": "testlease-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TestLease: exclusive, expiring leases for shared test resources",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.26.0",
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "clean": "rimraf -g 'packages/*/dist' 'packages/*/*.tsbuildinfo' 'examples/*/dist'",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:concurrency": "vitest run --project concurrency",
+    "test:mcp": "vitest run --project mcp",
+    "test:playwright": "vitest run --project playwright",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e:playwright": "pnpm --filter @testlease/example-playwright test",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.3",
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.2",
+    "@vitest/coverage-v8": "5.0.1",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.9.6",
+    "rimraf": "6.1.2",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "5.0.1"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
+}
