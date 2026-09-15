@@ -25,17 +25,20 @@ export function baseConfigInput(): Record<string, unknown> {
         resources: [
           {
             id: 'buyer-01',
-            metadata: { email: 'buyer01@example.test', region: 'nl', paymentMethod: 'ideal' },
+            tags: { region: 'nl', paymentMethod: 'ideal' },
+            metadata: { email: 'buyer01@example.test' },
             secrets: { password: 'env:BUYER_01_PASSWORD' },
           },
           {
             id: 'buyer-02',
-            metadata: { email: 'buyer02@example.test', region: 'nl', paymentMethod: 'card' },
+            tags: { region: 'nl', paymentMethod: 'card' },
+            metadata: { email: 'buyer02@example.test' },
             secrets: { password: 'env:BUYER_02_PASSWORD' },
           },
           {
             id: 'buyer-03',
-            metadata: { email: 'buyer03@example.test', region: 'be', paymentMethod: 'ideal' },
+            tags: { region: 'be', paymentMethod: 'ideal' },
+            metadata: { email: 'buyer03@example.test' },
             secrets: { password: 'env:BUYER_03_PASSWORD' },
           },
         ],

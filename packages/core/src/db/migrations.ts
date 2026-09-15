@@ -10,6 +10,7 @@ export interface Migration {
 
 /**
  * Schema migrations are append-only. Never edit an applied migration; add a new one.
+ * (Migration 1 was still being shaped before the first release; from v0.1.0 on it is frozen.)
  * The unique partial index `leases_one_active_per_resource` is the database-level guarantee
  * behind invariant #1 (never double-lease).
  */
@@ -32,7 +33,8 @@ CREATE TABLE resources (
   id                 TEXT PRIMARY KEY,
   pool               TEXT NOT NULL REFERENCES pools(name),
   state              TEXT NOT NULL CHECK (state IN ('AVAILABLE', 'LEASED', 'QUARANTINED', 'DISABLED')),
-  enabled            INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+  enabled_in_config  INTEGER NOT NULL DEFAULT 1 CHECK (enabled_in_config IN (0, 1)),
+  tags_json          TEXT NOT NULL DEFAULT '{}',
   metadata_json      TEXT NOT NULL DEFAULT '{}',
   secret_refs_json   TEXT NOT NULL DEFAULT '{}',
   active_lease_id    TEXT,
@@ -52,10 +54,13 @@ CREATE TABLE leases (
   resource_id        TEXT NOT NULL REFERENCES resources(id),
   pool               TEXT NOT NULL,
   owner              TEXT NOT NULL,
+  principal          TEXT NOT NULL,
   state              TEXT NOT NULL CHECK (state IN ('ACTIVE', 'RELEASED', 'EXPIRED')),
   client_request_id  TEXT,
   purpose            TEXT,
-  metadata_json      TEXT,
+  context_json       TEXT,
+  -- Resource contract (tags, metadata, secret *references*) frozen at acquisition time.
+  resource_snapshot_json TEXT NOT NULL,
   ttl_ms             INTEGER NOT NULL CHECK (ttl_ms > 0),
   created_at         INTEGER NOT NULL,
   expires_at         INTEGER NOT NULL,

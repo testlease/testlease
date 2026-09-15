@@ -16,6 +16,11 @@ describe('validateConfig', () => {
   it('applies defaults', () => {
     const { config, warnings } = validateConfig(baseConfigInput());
     expect(config.server.host).toBe('127.0.0.1');
+    expect(config.pools.buyers!.resources[0]!.tags).toEqual({
+      region: 'nl',
+      paymentMethod: 'ideal',
+    });
+    expect(config.pools.buyers!.resources[0]!.metadata).toEqual({ email: 'buyer01@example.test' });
     expect(config.server.port).toBe(4747);
     expect(config.pools.buyers!.defaultTtl).toBe(600_000);
     expect(config.pools.buyers!.maxTtl).toBe(3_600_000);
@@ -50,6 +55,13 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ pools: { p: { defaultTtl: '2h', maxTtl: '1h' } } })).toThrow(
       /exceeds maxTtl/,
     );
+  });
+
+  it('coerces tag values to strings', () => {
+    const { config } = validateConfig({
+      pools: { p: { resources: [{ id: 'a', tags: { slot: 1, premium: true } }] } },
+    });
+    expect(config.pools.p!.resources[0]!.tags).toEqual({ slot: '1', premium: 'true' });
   });
 
   it('warns (not fails) for an empty pool', () => {

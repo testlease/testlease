@@ -1,28 +1,28 @@
-import type { Metadata, Tags } from '@testlease/protocol';
+import type { Tags } from '@testlease/protocol';
 
 /**
  * Deterministic matching: a resource is eligible when every requested tag equals the
- * stringified metadata value under the same key. Missing keys never match.
+ * resource's tag under the same key. Missing keys never match. Metadata is not consulted.
  */
-export function matchesTags(metadata: Metadata, tags: Tags | undefined): boolean {
-  if (!tags) return true;
-  for (const [key, wanted] of Object.entries(tags)) {
-    if (!(key in metadata)) return false;
-    if (String(metadata[key]) !== wanted) return false;
+export function matchesTags(resourceTags: Tags, requested: Tags | undefined): boolean {
+  if (!requested) return true;
+  for (const [key, wanted] of Object.entries(requested)) {
+    if (!(key in resourceTags)) return false;
+    if (resourceTags[key] !== wanted) return false;
   }
   return true;
 }
 
 /** Distinct known values per requested key across a set of resources (for diagnostics). */
 export function knownTagValues(
-  resources: { metadata: Metadata }[],
+  resources: { tags: Tags }[],
   keys: string[],
 ): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const key of keys) {
     const values = new Set<string>();
     for (const r of resources) {
-      if (key in r.metadata) values.add(String(r.metadata[key]));
+      if (key in r.tags) values.add(r.tags[key]!);
     }
     out[key] = [...values].sort();
   }

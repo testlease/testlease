@@ -12,6 +12,7 @@ export {
   quarantineResourceRequestSchema,
   resolveSecretsRequestSchema,
   ownerSchema,
+  principalSchema,
   idSchema,
 } from './validation.js';
 export {
@@ -57,7 +58,7 @@ export {
   type MigrationResult,
 } from './db/migrations.js';
 export { SqliteStore, type IntegrityProblem, type PoolStateCounts } from './store/sqlite-store.js';
-export type { PoolRow, ResourceRow, LeaseRow, EventRow } from './store/rows.js';
+export type { PoolRow, ResourceRow, LeaseRow, EventRow, ResourceSnapshot } from './store/rows.js';
 export { matchesTags, knownTagValues } from './domain/matching.js';
 export { toLeaseView, toResourceView, toEventView } from './domain/views.js';
 export {
@@ -69,10 +70,12 @@ export { syncConfig, type SyncSummary } from './domain/config-sync.js';
 export {
   LeaseService,
   DEFAULT_WAIT_TIMEOUT_MS,
+  LOCAL_PRINCIPAL,
   type LeaseServiceOptions,
   type AcquireOptions,
+  type Actor,
 } from './domain/lease-service.js';
-export { LocalTestLeaseApi, type LocalApiInfo } from './domain/local-api.js';
+export { LocalTestLeaseApi, type LocalApiInfo, type LocalApiRuntime } from './domain/local-api.js';
 export {
   createTestLease,
   loadRuntimeConfig,

@@ -8,9 +8,15 @@ export type LeaseState = 'ACTIVE' | 'RELEASED' | 'EXPIRED';
 export type LeaseEndReason = 'RELEASED' | 'QUARANTINED' | 'EXPIRED' | 'FORCE_RELEASED';
 
 export type MetadataValue = string | number | boolean;
-/** Public, non-sensitive resource attributes. Also the matching surface for `tags`. */
+/**
+ * Public, non-sensitive, informational resource attributes (email, display name, notes).
+ * Metadata is never used for matching.
+ */
 export type Metadata = Record<string, MetadataValue>;
-/** Requested attributes. A resource matches when every tag equals `String(metadata[key])`. */
+/**
+ * The matching surface. A resource is eligible for an acquisition when every requested tag
+ * equals the resource's tag under the same key. Tag values are always strings.
+ */
 export type Tags = Record<string, string>;
 
 /** Epoch milliseconds, always produced by the server clock. */
@@ -46,8 +52,12 @@ export interface ResourceView {
   id: string;
   pool: string;
   state: ResourceState;
-  /** Present in configuration. When false the resource is DISABLED after its current lease ends. */
-  enabled: boolean;
+  /**
+   * Whether the *configuration* wants this resource enabled. Runtime `state` may lag behind:
+   * a LEASED resource with `enabledInConfig: false` becomes DISABLED when its lease ends.
+   */
+  enabledInConfig: boolean;
+  tags: Tags;
   metadata: Metadata;
   /** Names of configured secrets. Values are never included in any view. */
   secretKeys: string[];
@@ -70,12 +80,36 @@ export interface PoolDetail extends PoolSummary {
   waiters: WaiterView[];
 }
 
+/**
+ * The resource contract as it was when the lease started. Configuration changes (new tags,
+ * rotated secret references) do not alter a running lease; the next lease sees the new config.
+ */
+export interface LeaseResourceSnapshot {
+  id: string;
+  pool: string;
+  tags: Tags;
+  metadata: Metadata;
+  /** Names of secrets available to this lease. Values are never included. */
+  secretKeys: string[];
+}
+
 export interface LeaseView {
   leaseId: string;
   resourceId: string;
   pool: string;
-  /** Stable logical owner (e.g. `gha-483/chromium/worker-2`). Required for renew/release. */
+  /**
+   * Stable *logical* owner (e.g. `gha-483/chromium/worker-2`), chosen by the client for
+   * diagnostics and accidental-misuse protection. Not an authorization credential.
+   */
   owner: string;
+  /**
+   * Authenticated identity that acquired the lease: the API token name, or `local` in
+   * insecure-local mode. Renew/release require both `principal` and `owner` to match
+   * (or the `lease:admin` scope with `force`).
+   */
+  principal: string;
+  /** Resource contract frozen at acquisition time. */
+  resource: LeaseResourceSnapshot;
   state: LeaseState;
   ttlMs: number;
   createdAt: EpochMs;
@@ -86,7 +120,7 @@ export interface LeaseView {
   clientRequestId?: string;
   purpose?: string;
   /** Caller-supplied context for debugging (test title, CI job URL, ...). Never secrets. */
-  metadata?: Record<string, string>;
+  context?: Record<string, string>;
 }
 
 export interface AcquireRequest {
@@ -96,17 +130,20 @@ export interface AcquireRequest {
   tags?: Tags;
   /** Lease TTL. Defaults to the pool's `defaultTtl`, capped at the pool's `maxTtl`. */
   ttlMs?: number;
-  /** How long to wait for a compatible resource. 0 = fail fast with POOL_EXHAUSTED. */
+  /**
+   * How long to wait for a compatible resource. Defaults to 0 (fail fast with POOL_EXHAUSTED);
+   * adapters choose their own defaults (the Playwright fixture waits 60s).
+   */
   waitTimeoutMs?: number;
   /** Idempotency key. A retry with the same key returns the same active lease. */
   clientRequestId?: string;
   purpose?: string;
-  metadata?: Record<string, string>;
+  context?: Record<string, string>;
 }
 
 export interface AcquireResponse {
+  /** The lease, including the frozen resource snapshot (`lease.resource`). */
   lease: LeaseView;
-  resource: ResourceView;
   /** True when an existing active lease was returned because of `clientRequestId`. */
   reused: boolean;
   /** How long the request waited before a resource was assigned. */

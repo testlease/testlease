@@ -99,14 +99,12 @@ describe('multi-process acquisition on one SQLite file', () => {
 
       const verify = openDatabase(dbPath);
       const vstore = new SqliteStore(verify);
-      const events = vstore
-        .recentEvents(1_000_000)
-        .map((e) => ({
-          seq: e.seq,
-          type: e.type,
-          resourceId: e.resourceId ?? undefined,
-          leaseId: e.leaseId ?? undefined,
-        }));
+      const events = vstore.recentEvents(1_000_000).map((e) => ({
+        seq: e.seq,
+        type: e.type,
+        resourceId: e.resourceId ?? undefined,
+        leaseId: e.leaseId ?? undefined,
+      }));
       const { perResource } = assertNoOverlappingLeases(events);
       expect(Object.values(perResource).reduce((a, b) => a + b, 0)).toBe(totalAcquired);
       expect(vstore.checkIntegrity()).toEqual([]);

@@ -12,7 +12,7 @@ import type { TestLeaseConfig } from './config/schema.js';
 import { openDatabase, type SqliteDatabase } from './db/database.js';
 import { migrate } from './db/migrations.js';
 import { syncConfig, type SyncSummary } from './domain/config-sync.js';
-import { LeaseService } from './domain/lease-service.js';
+import { LeaseService, LOCAL_PRINCIPAL } from './domain/lease-service.js';
 import { LocalTestLeaseApi } from './domain/local-api.js';
 import { type Logger, noopLogger } from './logger.js';
 import { type SecretResolver, SecretResolverRegistry } from './secrets/resolver.js';
@@ -39,6 +39,7 @@ export interface TestLeaseEngine {
   store: SqliteStore;
   service: LeaseService;
   secrets: SecretResolverRegistry;
+  /** API bound to the `local` principal. Use `api.as(principal)` for authenticated callers. */
   api: LocalTestLeaseApi;
   schemaVersion: number;
   sync: SyncSummary;
@@ -90,13 +91,21 @@ export async function createTestLease(options: CreateTestLeaseOptions): Promise<
       logger,
       maxWaitMs: options.config.server.maxWait,
     });
-    const api = new LocalTestLeaseApi(service, secrets, clock, {
-      version: options.version ?? '0.0.0-dev',
-      startedAt: clock.now(),
-      schemaVersion: migration.version,
-      authMode: options.authMode ?? 'insecure-local',
-      mcpHttp: options.mcpHttp ?? false,
-    });
+    const runtime = { shuttingDown: false };
+    const api = new LocalTestLeaseApi(
+      service,
+      secrets,
+      clock,
+      {
+        version: options.version ?? '0.0.0-dev',
+        startedAt: clock.now(),
+        schemaVersion: migration.version,
+        authMode: options.authMode ?? 'insecure-local',
+        mcpHttp: options.mcpHttp ?? false,
+      },
+      runtime,
+      LOCAL_PRINCIPAL,
+    );
     service.start();
     engine = {
       config: options.config,
@@ -108,7 +117,7 @@ export async function createTestLease(options: CreateTestLeaseOptions): Promise<
       schemaVersion: migration.version,
       sync,
       close: () => {
-        api.shuttingDown = true;
+        runtime.shuttingDown = true;
         service.stop();
         db.close();
       },

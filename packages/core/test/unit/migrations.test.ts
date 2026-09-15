@@ -35,8 +35,8 @@ describe('migrations', () => {
       `INSERT INTO resources (id, pool, state, created_at, updated_at) VALUES ('r', 'p', 'AVAILABLE', ?, ?)`,
     ).run(now, now);
     const insert =
-      db.prepare(`INSERT INTO leases (id, resource_id, pool, owner, state, ttl_ms, created_at, expires_at, last_heartbeat_at)
-      VALUES (?, 'r', 'p', 'o', 'ACTIVE', 1000, ?, ?, ?)`);
+      db.prepare(`INSERT INTO leases (id, resource_id, pool, owner, principal, state, resource_snapshot_json, ttl_ms, created_at, expires_at, last_heartbeat_at)
+      VALUES (?, 'r', 'p', 'o', 'local', 'ACTIVE', '{}', 1000, ?, ?, ?)`);
     insert.run('l1', now, now + 1000, now);
     expect(() => insert.run('l2', now, now + 1000, now)).toThrow(/UNIQUE constraint failed/);
     // Ending the first lease frees the slot.
@@ -60,8 +60,8 @@ describe('migrations', () => {
       ).run(id, now, now);
     }
     const insert =
-      db.prepare(`INSERT INTO leases (id, resource_id, pool, owner, state, client_request_id, ttl_ms, created_at, expires_at, last_heartbeat_at)
-      VALUES (?, ?, 'p', 'o', 'ACTIVE', 'req-1', 1000, ?, ?, ?)`);
+      db.prepare(`INSERT INTO leases (id, resource_id, pool, owner, principal, state, client_request_id, resource_snapshot_json, ttl_ms, created_at, expires_at, last_heartbeat_at)
+      VALUES (?, ?, 'p', 'o', 'local', 'ACTIVE', 'req-1', '{}', 1000, ?, ?, ?)`);
     insert.run('l1', 'r1', now, now + 1000, now);
     expect(() => insert.run('l2', 'r2', now, now + 1000, now)).toThrow(/UNIQUE constraint failed/);
     db.close();

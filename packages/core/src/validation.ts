@@ -50,8 +50,11 @@ export const acquireRequestSchema = z.strictObject({
   waitTimeoutMs: z.number().int().min(0).max(LIMITS.maxWaitTimeoutMs).optional(),
   clientRequestId: z.string().min(1).max(LIMITS.maxOwnerLength).optional(),
   purpose: z.string().max(LIMITS.maxPurposeLength).optional(),
-  metadata: stringMetadataSchema.optional(),
+  context: stringMetadataSchema.optional(),
 });
+
+/** Authenticated identity (token name or `local`). Same shape rules as `owner`. */
+export const principalSchema = ownerSchema;
 
 export const renewRequestSchema = z.strictObject({
   owner: ownerSchema,

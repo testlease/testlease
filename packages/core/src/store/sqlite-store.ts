@@ -1,6 +1,12 @@
-import type { LeaseEndReason, LeaseState, Metadata, ResourceState } from '@testlease/protocol';
+import type {
+  LeaseEndReason,
+  LeaseState,
+  Metadata,
+  ResourceState,
+  Tags,
+} from '@testlease/protocol';
 import type { SqliteDatabase } from '../db/database.js';
-import type { EventRow, LeaseRow, PoolRow, ResourceRow } from './rows.js';
+import type { EventRow, LeaseRow, PoolRow, ResourceRow, ResourceSnapshot } from './rows.js';
 
 /* Raw row shapes as returned by better-sqlite3 (snake_case). */
 interface RawPool {
@@ -16,7 +22,8 @@ interface RawResource {
   id: string;
   pool: string;
   state: ResourceState;
-  enabled: number;
+  enabled_in_config: number;
+  tags_json: string;
   metadata_json: string;
   secret_refs_json: string;
   active_lease_id: string | null;
@@ -32,10 +39,12 @@ interface RawLease {
   resource_id: string;
   pool: string;
   owner: string;
+  principal: string;
   state: LeaseState;
   client_request_id: string | null;
   purpose: string | null;
-  metadata_json: string | null;
+  context_json: string | null;
+  resource_snapshot_json: string;
   ttl_ms: number;
   created_at: number;
   expires_at: number;
@@ -68,7 +77,8 @@ const mapResource = (r: RawResource): ResourceRow => ({
   id: r.id,
   pool: r.pool,
   state: r.state,
-  enabled: r.enabled === 1,
+  enabledInConfig: r.enabled_in_config === 1,
+  tags: JSON.parse(r.tags_json) as Tags,
   metadata: JSON.parse(r.metadata_json) as Metadata,
   secretRefs: JSON.parse(r.secret_refs_json) as Record<string, string>,
   activeLeaseId: r.active_lease_id,
@@ -85,10 +95,12 @@ const mapLease = (r: RawLease): LeaseRow => ({
   resourceId: r.resource_id,
   pool: r.pool,
   owner: r.owner,
+  principal: r.principal,
   state: r.state,
   clientRequestId: r.client_request_id,
   purpose: r.purpose,
-  metadata: r.metadata_json ? (JSON.parse(r.metadata_json) as Record<string, string>) : null,
+  context: r.context_json ? (JSON.parse(r.context_json) as Record<string, string>) : null,
+  snapshot: JSON.parse(r.resource_snapshot_json) as ResourceSnapshot,
   ttlMs: r.ttl_ms,
   createdAt: r.created_at,
   expiresAt: r.expires_at,
@@ -113,9 +125,11 @@ export interface InsertLeaseInput {
   resourceId: string;
   pool: string;
   owner: string;
+  principal: string;
   clientRequestId: string | null;
   purpose: string | null;
-  metadata: Record<string, string> | null;
+  context: Record<string, string> | null;
+  snapshot: ResourceSnapshot;
   ttlMs: number;
   createdAt: number;
   expiresAt: number;
@@ -176,24 +190,24 @@ export class SqliteStore {
       listResourcesInPool: db.prepare(`SELECT * FROM resources WHERE pool = ? ORDER BY id`),
       listAcquireCandidates: db.prepare(`
         SELECT * FROM resources
-        WHERE pool = ? AND state = 'AVAILABLE' AND enabled = 1
+        WHERE pool = ? AND state = 'AVAILABLE' AND enabled_in_config = 1
         ORDER BY last_leased_at IS NOT NULL, last_leased_at ASC, id ASC`),
       countStates: db.prepare(
         `SELECT state, COUNT(*) AS n FROM resources WHERE pool = ? GROUP BY state`,
       ),
       insertResource: db.prepare(`
-        INSERT INTO resources (id, pool, state, enabled, metadata_json, secret_refs_json, created_at, updated_at)
-        VALUES (@id, @pool, @state, @enabled, @metadataJson, @secretRefsJson, @now, @now)`),
+        INSERT INTO resources (id, pool, state, enabled_in_config, tags_json, metadata_json, secret_refs_json, created_at, updated_at)
+        VALUES (@id, @pool, @state, @enabledInConfig, @tagsJson, @metadataJson, @secretRefsJson, @now, @now)`),
       updateResourceConfig: db.prepare(`
-        UPDATE resources SET pool = @pool, enabled = @enabled, metadata_json = @metadataJson,
-          secret_refs_json = @secretRefsJson, updated_at = @now
+        UPDATE resources SET pool = @pool, enabled_in_config = @enabledInConfig, tags_json = @tagsJson,
+          metadata_json = @metadataJson, secret_refs_json = @secretRefsJson, updated_at = @now
         WHERE id = @id`),
       setResourceState: db.prepare(
         `UPDATE resources SET state = @state, updated_at = @now WHERE id = @id`,
       ),
       leaseResource: db.prepare(`
         UPDATE resources SET state = 'LEASED', active_lease_id = @leaseId, last_leased_at = @now, updated_at = @now
-        WHERE id = @id AND state = 'AVAILABLE' AND enabled = 1`),
+        WHERE id = @id AND state = 'AVAILABLE' AND enabled_in_config = 1`),
       freeResource: db.prepare(`
         UPDATE resources SET state = @state, active_lease_id = NULL, updated_at = @now
         WHERE id = @id AND state = 'LEASED' AND active_lease_id = @leaseId`),
@@ -224,10 +238,10 @@ export class SqliteStore {
       ),
       nextExpiry: db.prepare(`SELECT MIN(expires_at) AS next FROM leases WHERE state = 'ACTIVE'`),
       insertLease: db.prepare(`
-        INSERT INTO leases (id, resource_id, pool, owner, state, client_request_id, purpose, metadata_json,
-          ttl_ms, created_at, expires_at, last_heartbeat_at)
-        VALUES (@id, @resourceId, @pool, @owner, 'ACTIVE', @clientRequestId, @purpose, @metadataJson,
-          @ttlMs, @createdAt, @expiresAt, @createdAt)`),
+        INSERT INTO leases (id, resource_id, pool, owner, principal, state, client_request_id, purpose, context_json,
+          resource_snapshot_json, ttl_ms, created_at, expires_at, last_heartbeat_at)
+        VALUES (@id, @resourceId, @pool, @owner, @principal, 'ACTIVE', @clientRequestId, @purpose, @contextJson,
+          @snapshotJson, @ttlMs, @createdAt, @expiresAt, @createdAt)`),
       renewLease: db.prepare(`
         UPDATE leases SET expires_at = @expiresAt, last_heartbeat_at = @now, ttl_ms = @ttlMs
         WHERE id = @id AND state = 'ACTIVE'`),
@@ -320,7 +334,8 @@ export class SqliteStore {
       id: string;
       pool: string;
       state: ResourceState;
-      enabled: boolean;
+      enabledInConfig: boolean;
+      tags: Tags;
       metadata: Metadata;
       secretRefs: Record<string, string>;
     },
@@ -330,7 +345,8 @@ export class SqliteStore {
       id: input.id,
       pool: input.pool,
       state: input.state,
-      enabled: input.enabled ? 1 : 0,
+      enabledInConfig: input.enabledInConfig ? 1 : 0,
+      tagsJson: JSON.stringify(input.tags),
       metadataJson: JSON.stringify(input.metadata),
       secretRefsJson: JSON.stringify(input.secretRefs),
       now,
@@ -341,7 +357,8 @@ export class SqliteStore {
     input: {
       id: string;
       pool: string;
-      enabled: boolean;
+      enabledInConfig: boolean;
+      tags: Tags;
       metadata: Metadata;
       secretRefs: Record<string, string>;
     },
@@ -350,7 +367,8 @@ export class SqliteStore {
     this.stmts.updateResourceConfig.run({
       id: input.id,
       pool: input.pool,
-      enabled: input.enabled ? 1 : 0,
+      enabledInConfig: input.enabledInConfig ? 1 : 0,
+      tagsJson: JSON.stringify(input.tags),
       metadataJson: JSON.stringify(input.metadata),
       secretRefsJson: JSON.stringify(input.secretRefs),
       now,
@@ -413,9 +431,11 @@ export class SqliteStore {
   }
 
   insertLease(input: InsertLeaseInput): void {
+    const { context, snapshot, ...rest } = input;
     this.stmts.insertLease.run({
-      ...input,
-      metadataJson: input.metadata ? JSON.stringify(input.metadata) : null,
+      ...rest,
+      contextJson: context ? JSON.stringify(context) : null,
+      snapshotJson: JSON.stringify(snapshot),
     });
   }
 

@@ -28,6 +28,7 @@ import type { SqliteStore } from '../store/sqlite-store.js';
 import {
   acquireRequestSchema,
   ownerSchema,
+  principalSchema,
   quarantineRequestSchema,
   quarantineResourceRequestSchema,
   releaseRequestSchema,
@@ -39,7 +40,19 @@ import { knownTagValues, matchesTags } from './matching.js';
 import { toEventView, toLeaseView, toResourceView } from './views.js';
 import { WaitQueue, type Waiter } from './wait-queue.js';
 
-export const DEFAULT_WAIT_TIMEOUT_MS = 60_000;
+/**
+ * Core and REST default: fail fast. Adapters pick their own defaults (Playwright waits 60s)
+ * so a generic `acquire()` never blocks silently.
+ */
+export const DEFAULT_WAIT_TIMEOUT_MS = 0;
+
+/** Principal used when authentication is disabled (insecure-local mode) or in-process tests. */
+export const LOCAL_PRINCIPAL = 'local';
+
+/** The authenticated identity performing an operation. Derived by the server, never by clients. */
+export interface Actor {
+  principal: string;
+}
 
 export interface LeaseServiceOptions {
   store: SqliteStore;
@@ -55,15 +68,16 @@ export interface LeaseServiceOptions {
 interface NormalizedAcquire {
   pool: string;
   owner: string;
+  principal: string;
   tags: Tags;
   ttlMs: number | undefined;
   waitTimeoutMs: number;
   clientRequestId: string | null;
   purpose: string | null;
-  metadata: Record<string, string> | null;
+  context: Record<string, string> | null;
 }
 
-export interface AcquireOptions {
+export interface AcquireOptions extends Partial<Actor> {
   signal?: AbortSignal;
 }
 
@@ -215,7 +229,7 @@ export class LeaseService {
    * Resolution order for waiters is FIFO per pool (see WaitQueue).
    */
   async acquire(input: AcquireRequest, options: AcquireOptions = {}): Promise<AcquireResponse> {
-    const req = this.normalizeAcquire(input);
+    const req = this.normalizeAcquire(input, options.principal);
     this.assertNotStopped();
     const startedAt = this.clock.now();
 
@@ -291,8 +305,8 @@ export class LeaseService {
   }
 
   /** Single synchronous attempt. Returns null when nothing compatible is available right now. */
-  tryAcquire(input: AcquireRequest): AcquireResponse | null {
-    const req = this.normalizeAcquire(input);
+  tryAcquire(input: AcquireRequest, actor?: Actor): AcquireResponse | null {
+    const req = this.normalizeAcquire(input, actor?.principal);
     this.assertNotStopped();
     return this.runAcquireAttempt(req, this.clock.now(), 0);
   }
@@ -315,9 +329,10 @@ export class LeaseService {
         {
           event: result.reused ? 'lease.reused' : 'lease.acquired',
           pool: req.pool,
-          resourceId: result.resource.id,
+          resourceId: result.lease.resourceId,
           leaseId: result.lease.leaseId,
           owner: req.owner,
+          principal: req.principal,
           waitedMs,
           ttlMs: result.lease.ttlMs,
         },
@@ -351,21 +366,22 @@ export class LeaseService {
     if (req.clientRequestId) {
       const existing = this.store.findActiveLeaseByClientRequestId(req.clientRequestId);
       if (existing) {
-        const resource = this.store.getResource(existing.resourceId);
+        // The lease's frozen snapshot is the contract the retry must be satisfied by.
         const compatible =
           existing.pool === req.pool &&
           existing.owner === req.owner &&
-          resource !== undefined &&
-          matchesTags(resource.metadata, req.tags);
-        if (!compatible || !resource) {
+          existing.principal === req.principal &&
+          matchesTags(existing.snapshot.tags, req.tags);
+        if (!compatible) {
           throw new TestLeaseError(
             ErrorCodes.IDEMPOTENCY_CONFLICT,
-            `clientRequestId "${req.clientRequestId}" is already bound to active lease ${existing.id} (pool "${existing.pool}", owner "${existing.owner}") which does not satisfy this request. Use a new clientRequestId for a different request.`,
+            `clientRequestId "${req.clientRequestId}" is already bound to active lease ${existing.id} (pool "${existing.pool}", owner "${existing.owner}", principal "${existing.principal}") which does not satisfy this request. Use a new clientRequestId for a different request.`,
             {
               clientRequestId: req.clientRequestId,
               leaseId: existing.id,
               existingPool: existing.pool,
               existingOwner: existing.owner,
+              existingPrincipal: existing.principal,
               existingResourceId: existing.resourceId,
             },
           );
@@ -379,24 +395,19 @@ export class LeaseService {
           owner: req.owner,
           details: { clientRequestId: req.clientRequestId, waitedMs },
         });
-        return {
-          lease: toLeaseView(existing),
-          resource: toResourceView(resource, existing),
-          reused: true,
-          waitedMs,
-        };
+        return { lease: toLeaseView(existing), reused: true, waitedMs };
       }
     }
 
     const all = this.store.listResources(req.pool);
-    const everMatching = all.filter((r) => matchesTags(r.metadata, req.tags));
-    if (everMatching.length === 0 || everMatching.every((r) => !r.enabled)) {
+    const everMatching = all.filter((r) => matchesTags(r.tags, req.tags));
+    if (everMatching.length === 0 || everMatching.every((r) => !r.enabledInConfig)) {
       throw this.noMatchingResource(req, all, everMatching);
     }
 
     const chosen = this.store
       .listAcquireCandidates(req.pool)
-      .find((r) => matchesTags(r.metadata, req.tags));
+      .find((r) => matchesTags(r.tags, req.tags));
     if (!chosen) return null;
 
     const leaseId = this.leaseIdFactory();
@@ -408,9 +419,12 @@ export class LeaseService {
       resourceId: chosen.id,
       pool: req.pool,
       owner: req.owner,
+      principal: req.principal,
       clientRequestId: req.clientRequestId,
       purpose: req.purpose,
-      metadata: req.metadata,
+      context: req.context,
+      // Freeze the resource contract for the lifetime of this lease.
+      snapshot: { tags: chosen.tags, metadata: chosen.metadata, secretRefs: chosen.secretRefs },
       ttlMs,
       createdAt: now,
       expiresAt,
@@ -433,25 +447,24 @@ export class LeaseService {
         ttlMs,
         expiresAt,
         waitedMs,
-        ...(req.tags && Object.keys(req.tags).length ? { tags: req.tags } : {}),
+        principal: req.principal,
+        ...(Object.keys(req.tags).length ? { tags: req.tags } : {}),
         ...(req.clientRequestId ? { clientRequestId: req.clientRequestId } : {}),
         ...(req.purpose ? { purpose: req.purpose } : {}),
       },
     });
-    const lease = this.store.getLease(leaseId)!;
-    const resource = this.store.getResource(chosen.id)!;
-    return {
-      lease: toLeaseView(lease),
-      resource: toResourceView(resource, lease),
-      reused: false,
-      waitedMs,
-    };
+    return { lease: toLeaseView(this.store.getLease(leaseId)!), reused: false, waitedMs };
   }
 
   // -------------------------------------------------------------------- renew
 
-  renew(leaseId: string, input: RenewRequest): RenewResponse {
+  renew(
+    leaseId: string,
+    input: RenewRequest,
+    actor: Actor = { principal: LOCAL_PRINCIPAL },
+  ): RenewResponse {
     const req = validate(renewRequestSchema, input, 'renew request');
+    const principal = validate(principalSchema, actor.principal, 'principal');
     this.assertNotStopped();
     const now = this.clock.now();
     const touched: string[] = [];
@@ -461,7 +474,7 @@ export class LeaseService {
         for (const e of this.expireDueInTx(now)) touched.push(e.pool);
         const lease = this.requireLease(leaseId);
         this.assertActive(lease, 'renew');
-        this.assertOwner(lease, req.owner, false, 'renew');
+        this.assertOwnership(lease, req.owner, principal, false, 'renew');
         const pool = this.store.getPool(lease.pool);
         const ttlMs = req.ttlMs ?? lease.ttlMs;
         if (pool && ttlMs > pool.maxTtlMs) {
@@ -505,8 +518,13 @@ export class LeaseService {
   // ------------------------------------------------------------------ release
 
   /** Idempotent: releasing an already released or expired lease is a no-op with a distinct outcome. */
-  release(leaseId: string, input: ReleaseRequest): ReleaseResponse {
+  release(
+    leaseId: string,
+    input: ReleaseRequest,
+    actor: Actor = { principal: LOCAL_PRINCIPAL },
+  ): ReleaseResponse {
     const req = validate(releaseRequestSchema, input, 'release request');
+    const principal = validate(principalSchema, actor.principal, 'principal');
     const now = this.clock.now();
     const touched: string[] = [];
     let response: ReleaseResponse;
@@ -518,10 +536,11 @@ export class LeaseService {
           return { lease: toLeaseView(lease), outcome: 'already_released' as const };
         if (lease.state === 'EXPIRED')
           return { lease: toLeaseView(lease), outcome: 'already_expired' as const };
-        this.assertOwner(lease, req.owner, req.force === true, 'release');
+        this.assertOwnership(lease, req.owner, principal, req.force === true, 'release');
         this.endActiveLease(lease, 'RELEASED', req.force ? 'FORCE_RELEASED' : 'RELEASED', now, {
           heldMs: now - lease.createdAt,
           by: req.owner,
+          principal,
           ...(req.force ? { force: true } : {}),
         });
         touched.push(lease.pool);
@@ -548,8 +567,13 @@ export class LeaseService {
   // --------------------------------------------------------------- quarantine
 
   /** Ends the lease and marks its resource QUARANTINED so it is not handed out again. */
-  quarantine(leaseId: string, input: QuarantineRequest): QuarantineResponse {
+  quarantine(
+    leaseId: string,
+    input: QuarantineRequest,
+    actor: Actor = { principal: LOCAL_PRINCIPAL },
+  ): QuarantineResponse {
     const req = validate(quarantineRequestSchema, input, 'quarantine request');
+    const principal = validate(principalSchema, actor.principal, 'principal');
     const now = this.clock.now();
     const touched: string[] = [];
     let response: QuarantineResponse;
@@ -558,7 +582,7 @@ export class LeaseService {
         for (const e of this.expireDueInTx(now)) touched.push(e.pool);
         const lease = this.requireLease(leaseId);
         this.assertActive(lease, 'quarantine');
-        this.assertOwner(lease, req.owner, req.force === true, 'quarantine');
+        this.assertOwnership(lease, req.owner, principal, req.force === true, 'quarantine');
         this.store.endLease(lease.id, 'RELEASED', 'QUARANTINED', now);
         this.store.insertEvent({
           at: now,
@@ -567,7 +591,13 @@ export class LeaseService {
           resourceId: lease.resourceId,
           leaseId: lease.id,
           owner: lease.owner,
-          details: { heldMs: now - lease.createdAt, by: req.owner, quarantined: true },
+          details: {
+            heldMs: now - lease.createdAt,
+            by: req.owner,
+            principal,
+            quarantined: true,
+            ...(req.force ? { force: true } : {}),
+          },
         });
         this.store.quarantineResource(lease.resourceId, req.reason, req.owner, now);
         this.store.insertEvent({
@@ -606,10 +636,10 @@ export class LeaseService {
   quarantineResource(
     resourceId: string,
     input: QuarantineResourceRequest,
-    by: string,
+    actor: Actor = { principal: LOCAL_PRINCIPAL },
   ): { resource: ResourceView } {
     const req = validate(quarantineResourceRequestSchema, input, 'quarantine request');
-    validate(ownerSchema, by, 'principal');
+    const by = validate(principalSchema, actor.principal, 'principal');
     const now = this.clock.now();
     const touched: string[] = [];
     let view: ResourceView;
@@ -682,7 +712,7 @@ export class LeaseService {
             { resourceId, state: resource.state },
           );
         }
-        const next = resource.enabled ? 'AVAILABLE' : 'DISABLED';
+        const next = resource.enabledInConfig ? 'AVAILABLE' : 'DISABLED';
         this.store.restoreResource(resource.id, next, now);
         this.store.insertEvent({
           at: now,
@@ -717,8 +747,10 @@ export class LeaseService {
   secretRefsForLease(
     leaseId: string,
     ownerInput: string,
+    actor: Actor = { principal: LOCAL_PRINCIPAL },
   ): { lease: LeaseView; refs: Record<string, string> } {
     const owner = validate(ownerSchema, ownerInput, 'owner');
+    const principal = validate(principalSchema, actor.principal, 'principal');
     const now = this.clock.now();
     const touched: string[] = [];
     try {
@@ -726,8 +758,9 @@ export class LeaseService {
         for (const e of this.expireDueInTx(now)) touched.push(e.pool);
         const lease = this.requireLease(leaseId);
         this.assertActive(lease, 'resolve secrets for');
-        this.assertOwner(lease, owner, false, 'resolve secrets for');
-        const resource = this.requireResource(lease.resourceId);
+        this.assertOwnership(lease, owner, principal, false, 'resolve secrets for');
+        // Secret references come from the lease's frozen snapshot, not from the live resource,
+        // so a rotated reference in configuration does not change a running test's credentials.
         this.store.insertEvent({
           at: now,
           type: 'LEASE_SECRETS_RESOLVED',
@@ -735,9 +768,9 @@ export class LeaseService {
           resourceId: lease.resourceId,
           leaseId: lease.id,
           owner,
-          details: { secretKeys: Object.keys(resource.secretRefs).sort() },
+          details: { secretKeys: Object.keys(lease.snapshot.secretRefs).sort(), principal },
         });
-        return { lease: toLeaseView(lease), refs: { ...resource.secretRefs } };
+        return { lease: toLeaseView(lease), refs: { ...lease.snapshot.secretRefs } };
       });
     } finally {
       this.onStateChanged(touched);
@@ -805,7 +838,7 @@ export class LeaseService {
     });
     const resource = this.store.getResource(lease.resourceId);
     if (resource && resource.state === 'LEASED' && resource.activeLeaseId === lease.id) {
-      const next = resource.enabled ? 'AVAILABLE' : 'DISABLED';
+      const next = resource.enabledInConfig ? 'AVAILABLE' : 'DISABLED';
       if (!this.store.freeResource(resource.id, lease.id, next, now)) {
         throw new TestLeaseError(
           ErrorCodes.INTERNAL_ERROR,
@@ -893,7 +926,7 @@ export class LeaseService {
           {
             event: result.reused ? 'lease.reused' : 'lease.acquired',
             pool,
-            resourceId: result.resource.id,
+            resourceId: result.lease.resourceId,
             leaseId: result.lease.leaseId,
             owner: waiter.owner,
             waitedMs: result.waitedMs,
@@ -909,17 +942,22 @@ export class LeaseService {
 
   // ----------------------------------------------------------------- helpers
 
-  private normalizeAcquire(input: AcquireRequest): NormalizedAcquire {
+  private normalizeAcquire(
+    input: AcquireRequest,
+    principalInput: string | undefined,
+  ): NormalizedAcquire {
     const req = validate(acquireRequestSchema, input, 'acquire request');
+    const principal = validate(principalSchema, principalInput ?? LOCAL_PRINCIPAL, 'principal');
     return {
       pool: req.pool,
       owner: req.owner,
+      principal,
       tags: req.tags ?? {},
       ttlMs: req.ttlMs,
       waitTimeoutMs: Math.min(req.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS, this.maxWaitMs),
       clientRequestId: req.clientRequestId ?? null,
       purpose: req.purpose ?? null,
-      metadata: req.metadata ?? null,
+      context: req.context ?? null,
     };
   }
 
@@ -990,13 +1028,37 @@ export class LeaseService {
     );
   }
 
-  private assertOwner(lease: LeaseRow, owner: string, force: boolean, action: string): void {
-    if (force || lease.owner === owner) return;
-    throw new TestLeaseError(
-      ErrorCodes.LEASE_OWNERSHIP_MISMATCH,
-      `Cannot ${action} lease ${lease.id}: it is owned by "${lease.owner}", not "${owner}".`,
-      { leaseId: lease.id, leaseOwner: lease.owner, presentedOwner: owner },
-    );
+  /**
+   * Ownership = authenticated principal AND logical owner. `force` (admin) bypasses both;
+   * the server only passes force=true for callers holding `lease:admin`.
+   */
+  private assertOwnership(
+    lease: LeaseRow,
+    owner: string,
+    principal: string,
+    force: boolean,
+    action: string,
+  ): void {
+    if (force) return;
+    if (lease.owner !== owner) {
+      throw new TestLeaseError(
+        ErrorCodes.LEASE_OWNERSHIP_MISMATCH,
+        `Cannot ${action} lease ${lease.id}: it is owned by "${lease.owner}", not "${owner}".`,
+        { leaseId: lease.id, mismatch: 'owner', leaseOwner: lease.owner, presentedOwner: owner },
+      );
+    }
+    if (lease.principal !== principal) {
+      throw new TestLeaseError(
+        ErrorCodes.LEASE_OWNERSHIP_MISMATCH,
+        `Cannot ${action} lease ${lease.id}: it was acquired by principal "${lease.principal}", not "${principal}". Use the same API token, or the lease:admin scope with force.`,
+        {
+          leaseId: lease.id,
+          mismatch: 'principal',
+          leasePrincipal: lease.principal,
+          presentedPrincipal: principal,
+        },
+      );
+    }
   }
 
   private assertNotStopped(): void {
@@ -1058,7 +1120,7 @@ export class LeaseService {
       return {
         id: r.id,
         state: r.state,
-        compatible: matchesTags(r.metadata, tags),
+        compatible: matchesTags(r.tags, tags),
         ...(lease ? { owner: lease.owner, expiresInMs: lease.expiresAt - now } : {}),
         ...(lease?.purpose ? { purpose: lease.purpose } : {}),
         ...(r.quarantineReason ? { quarantineReason: r.quarantineReason } : {}),

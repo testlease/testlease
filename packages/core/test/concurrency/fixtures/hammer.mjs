@@ -26,9 +26,9 @@ for (let i = 0; i < iterations; i++) {
     }
     acquired++;
     await sleep(Math.random() * 3);
-    const check = store.getResource(res.resource.id);
+    const check = store.getResource(res.lease.resourceId);
     if (check.activeLeaseId !== res.lease.leaseId) {
-      console.error(`OWNERSHIP LOST: ${processName} lease ${res.lease.leaseId} on ${res.resource.id}, active is ${check.activeLeaseId}`);
+      console.error(`OWNERSHIP LOST: ${processName} lease ${res.lease.leaseId} on ${res.lease.resourceId}, active is ${check.activeLeaseId}`);
       process.exitCode = 3;
     }
     const rel = service.release(res.lease.leaseId, { owner: processName });

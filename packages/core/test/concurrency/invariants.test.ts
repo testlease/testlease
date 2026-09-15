@@ -45,7 +45,7 @@ describe('invariant: never double-lease', () => {
     const work = async (i: number) => {
       const owner = `worker-${String(i).padStart(2, '0')}`;
       const res = await engine.service.acquire({ pool: 'accounts', owner, waitTimeoutMs: 30_000 });
-      const rid = res.resource.id;
+      const rid = res.lease.resourceId;
       // Application-level overlap detection, independent of the database.
       const current = holders.get(rid);
       if (current) violations.push(`${owner} received ${rid} while ${current} still held it`);
@@ -98,7 +98,7 @@ describe('invariant: never double-lease', () => {
     const got: string[] = [];
     for (let i = 0; i < 200; i++) {
       const r = engine.service.tryAcquire({ pool: 'accounts', owner: `o${i}` });
-      if (r) got.push(r.resource.id);
+      if (r) got.push(r.lease.resourceId);
     }
     expect(got).toHaveLength(5);
     expect(new Set(got).size).toBe(5);
@@ -208,7 +208,7 @@ describe('invariant: expired leases are reclaimable, live leases are not', () =>
         endReason: 'EXPIRED',
       });
       const next = await engine.service.acquire({ pool: 'p', owner: 'next', waitTimeoutMs: 0 });
-      expect(next.resource.id).toBe('only');
+      expect(next.lease.resourceId).toBe('only');
       const types = engine.service.listResourceEvents('only').map((e) => e.type);
       expect(types).toEqual([
         'RESOURCE_REGISTERED',
@@ -269,7 +269,7 @@ describe('invariant: expired leases are reclaimable, live leases are not', () =>
       const dead = await svc.acquire({ pool: 'p', owner: 'dead', waitTimeoutMs: 0 });
       clock.advance(1000);
       const next = await svc.acquire({ pool: 'p', owner: 'next', waitTimeoutMs: 0 });
-      expect(next.resource.id).toBe('only');
+      expect(next.lease.resourceId).toBe('only');
       expect(svc.getLease(dead.lease.leaseId).state).toBe('EXPIRED');
       expect(engine.store.checkIntegrity()).toEqual([]);
     } finally {
@@ -288,7 +288,7 @@ describe('invariant: quarantined resources are never acquired', () => {
         waitTimeoutMs: 0,
       });
       engine.service.quarantine(first.lease.leaseId, { owner: 'q', reason: 'contaminated' });
-      const quarantined = first.resource.id;
+      const quarantined = first.lease.resourceId;
 
       const seen = new Set<string>();
       await Promise.all(
@@ -298,7 +298,7 @@ describe('invariant: quarantined resources are never acquired', () => {
             owner: `w${i}`,
             waitTimeoutMs: 10_000,
           });
-          seen.add(r.resource.id);
+          seen.add(r.lease.resourceId);
           await sleep(3);
           engine.service.release(r.lease.leaseId, { owner: `w${i}` });
         }),
@@ -316,7 +316,7 @@ describe('invariant: quarantined resources are never acquired', () => {
             owner: `r${i}`,
             waitTimeoutMs: 10_000,
           });
-          after.add(r.resource.id);
+          after.add(r.lease.resourceId);
           await sleep(3);
           engine.service.release(r.lease.leaseId, { owner: `r${i}` });
         }),
@@ -356,10 +356,10 @@ describe('invariant: restart keeps live leases', () => {
 
       const e2 = await makeEngine({ configInput: fivePool(), dbPath, clock });
       expect(e2.service.getLease(live.lease.leaseId).state).toBe('ACTIVE');
-      expect(e2.service.getResource(live.resource.id).activeLease?.owner).toBe('w-live');
+      expect(e2.service.getResource(live.lease.resourceId).activeLease?.owner).toBe('w-live');
       expect(e2.service.getLease(doomed.lease.leaseId).state).toBe('EXPIRED');
-      expect(e2.service.getResource(doomed.resource.id).state).toBe('AVAILABLE');
-      expect(e2.service.getResource(q.resource.id).state).toBe('QUARANTINED');
+      expect(e2.service.getResource(doomed.lease.resourceId).state).toBe('AVAILABLE');
+      expect(e2.service.getResource(q.lease.resourceId).state).toBe('QUARANTINED');
       expect(e2.service.getPool('accounts').counts).toEqual({
         available: 3,
         leased: 1,
@@ -407,14 +407,12 @@ describe('invariant: release/acquire races keep ownership consistent', () => {
       });
       await Promise.all(actors);
       expect(maxHolders).toBe(1);
-      const events = engine.store
-        .recentEvents(10_000)
-        .map((e) => ({
-          seq: e.seq,
-          type: e.type,
-          resourceId: e.resourceId ?? undefined,
-          leaseId: e.leaseId ?? undefined,
-        }));
+      const events = engine.store.recentEvents(10_000).map((e) => ({
+        seq: e.seq,
+        type: e.type,
+        resourceId: e.resourceId ?? undefined,
+        leaseId: e.leaseId ?? undefined,
+      }));
       expect(assertNoOverlappingLeases(events).perResource).toEqual({ hot: 90 });
       expect(engine.store.checkIntegrity()).toEqual([]);
     } finally {

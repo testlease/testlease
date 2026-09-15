@@ -27,6 +27,10 @@ const identifier = z
   );
 
 const metadataValueSchema = z.union([z.string().max(1000), z.number(), z.boolean()]);
+/** Tag values are coerced to strings so `slot: 1` and `slot: "1"` match the same request. */
+const tagValueSchema = z
+  .union([z.string().max(LIMITS.maxTagValueLength), z.number(), z.boolean()])
+  .transform((v) => String(v));
 
 export const secretRefSchema = z
   .string()
@@ -35,6 +39,9 @@ export const secretRefSchema = z
 export const resourceConfigSchema = z.strictObject({
   id: identifier,
   enabled: z.boolean().default(true),
+  /** Matching surface: `acquire({ tags })` selects only resources whose tags contain every pair. */
+  tags: z.record(z.string().min(1).max(LIMITS.maxTagKeyLength), tagValueSchema).default({}),
+  /** Informational, public attributes (email, display name). Never used for matching. */
   metadata: z
     .record(z.string().min(1).max(LIMITS.maxTagKeyLength), metadataValueSchema)
     .default({}),

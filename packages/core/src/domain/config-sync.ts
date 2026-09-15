@@ -1,4 +1,4 @@
-import type { Metadata } from '@testlease/protocol';
+import type { Metadata, Tags } from '@testlease/protocol';
 import type { TestLeaseConfig } from '../config/schema.js';
 import type { Logger } from '../logger.js';
 import { noopLogger } from '../logger.js';
@@ -81,7 +81,8 @@ export function syncConfig(
               id: resource.id,
               pool: poolName,
               state: resource.enabled ? 'AVAILABLE' : 'DISABLED',
-              enabled: resource.enabled,
+              enabledInConfig: resource.enabled,
+              tags: resource.tags,
               metadata: resource.metadata,
               secretRefs: resource.secrets,
             },
@@ -94,6 +95,7 @@ export function syncConfig(
             resourceId: resource.id,
             details: {
               enabled: resource.enabled,
+              tags: resource.tags,
               metadataKeys: Object.keys(resource.metadata).sort(),
               secretKeys: Object.keys(resource.secrets).sort(),
             },
@@ -102,6 +104,7 @@ export function syncConfig(
           continue;
         }
 
+        const tagChanges = changedKeys(existing.tags, resource.tags);
         const metadataChanges = changedKeys(existing.metadata, resource.metadata);
         const secretChanges = changedKeys(existing.secretRefs, resource.secrets);
         const poolChanged = existing.pool !== poolName;
@@ -109,19 +112,21 @@ export function syncConfig(
           {
             id: resource.id,
             pool: poolName,
-            enabled: resource.enabled,
+            enabledInConfig: resource.enabled,
+            tags: resource.tags,
             metadata: resource.metadata,
             secretRefs: resource.secrets,
           },
           now,
         );
-        if (metadataChanges.length || secretChanges.length || poolChanged) {
+        if (tagChanges.length || metadataChanges.length || secretChanges.length || poolChanged) {
           store.insertEvent({
             at: now,
             type: 'RESOURCE_UPDATED',
             pool: poolName,
             resourceId: resource.id,
             details: {
+              ...(tagChanges.length ? { tagKeys: tagChanges } : {}),
               ...(metadataChanges.length ? { metadataKeys: metadataChanges } : {}),
               ...(secretChanges.length ? { secretKeys: secretChanges } : {}),
               ...(poolChanged ? { previousPool: existing.pool } : {}),
@@ -129,7 +134,7 @@ export function syncConfig(
           });
           summary.updated.push(resource.id);
         }
-        if (resource.enabled && !existing.enabled) {
+        if (resource.enabled && !existing.enabledInConfig) {
           if (existing.state === 'DISABLED') store.setResourceState(resource.id, 'AVAILABLE', now);
           store.insertEvent({
             at: now,
@@ -138,7 +143,7 @@ export function syncConfig(
             resourceId: resource.id,
           });
           summary.enabled.push(resource.id);
-        } else if (!resource.enabled && existing.enabled) {
+        } else if (!resource.enabled && existing.enabledInConfig) {
           if (existing.state === 'AVAILABLE') store.setResourceState(resource.id, 'DISABLED', now);
           store.insertEvent({
             at: now,
@@ -156,12 +161,13 @@ export function syncConfig(
     }
 
     for (const existing of store.listResources()) {
-      if (configuredResources.has(existing.id) || !existing.enabled) continue;
+      if (configuredResources.has(existing.id) || !existing.enabledInConfig) continue;
       store.updateResourceConfig(
         {
           id: existing.id,
           pool: existing.pool,
-          enabled: false,
+          enabledInConfig: false,
+          tags: existing.tags,
           metadata: existing.metadata,
           secretRefs: existing.secretRefs,
         },

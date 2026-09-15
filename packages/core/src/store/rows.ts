@@ -1,4 +1,10 @@
-import type { LeaseEndReason, LeaseState, Metadata, ResourceState } from '@testlease/protocol';
+import type {
+  LeaseEndReason,
+  LeaseState,
+  Metadata,
+  ResourceState,
+  Tags,
+} from '@testlease/protocol';
 
 export interface PoolRow {
   name: string;
@@ -14,7 +20,8 @@ export interface ResourceRow {
   id: string;
   pool: string;
   state: ResourceState;
-  enabled: boolean;
+  enabledInConfig: boolean;
+  tags: Tags;
   metadata: Metadata;
   /** Secret *references* only (e.g. `env:BUYER_01_PASSWORD`). Never values. */
   secretRefs: Record<string, string>;
@@ -27,15 +34,25 @@ export interface ResourceRow {
   updatedAt: number;
 }
 
+/** Resource contract captured when the lease was created. */
+export interface ResourceSnapshot {
+  tags: Tags;
+  metadata: Metadata;
+  /** Secret references (e.g. `env:BUYER_01_PASSWORD`), never values. */
+  secretRefs: Record<string, string>;
+}
+
 export interface LeaseRow {
   id: string;
   resourceId: string;
   pool: string;
   owner: string;
+  principal: string;
   state: LeaseState;
   clientRequestId: string | null;
   purpose: string | null;
-  metadata: Record<string, string> | null;
+  context: Record<string, string> | null;
+  snapshot: ResourceSnapshot;
   ttlMs: number;
   createdAt: number;
   expiresAt: number;

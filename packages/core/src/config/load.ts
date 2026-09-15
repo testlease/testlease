@@ -64,6 +64,11 @@ export function validateConfig(raw: unknown, source = '<inline>'): LoadedConfig 
           `pools.${poolName}.resources[${resource.id}]: at most ${LIMITS.maxMetadataEntries} metadata entries`,
         );
       }
+      if (Object.keys(resource.tags).length > LIMITS.maxTagCount) {
+        problems.push(
+          `pools.${poolName}.resources[${resource.id}]: at most ${LIMITS.maxTagCount} tags`,
+        );
+      }
     }
     pools[poolName] = { ...pool, maxTtl };
   }

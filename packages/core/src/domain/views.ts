@@ -7,6 +7,14 @@ export function toLeaseView(row: LeaseRow): LeaseView {
     resourceId: row.resourceId,
     pool: row.pool,
     owner: row.owner,
+    principal: row.principal,
+    resource: {
+      id: row.resourceId,
+      pool: row.pool,
+      tags: row.snapshot.tags,
+      metadata: row.snapshot.metadata,
+      secretKeys: Object.keys(row.snapshot.secretRefs).sort(),
+    },
     state: row.state,
     ttlMs: row.ttlMs,
     createdAt: row.createdAt,
@@ -17,7 +25,7 @@ export function toLeaseView(row: LeaseRow): LeaseView {
   if (row.endReason !== null) view.endReason = row.endReason;
   if (row.clientRequestId !== null) view.clientRequestId = row.clientRequestId;
   if (row.purpose !== null) view.purpose = row.purpose;
-  if (row.metadata !== null) view.metadata = row.metadata;
+  if (row.context !== null) view.context = row.context;
   return view;
 }
 
@@ -27,7 +35,8 @@ export function toResourceView(row: ResourceRow, activeLease?: LeaseRow | null):
     id: row.id,
     pool: row.pool,
     state: row.state,
-    enabled: row.enabled,
+    enabledInConfig: row.enabledInConfig,
+    tags: row.tags,
     metadata: row.metadata,
     secretKeys: Object.keys(row.secretRefs).sort(),
     createdAt: row.createdAt,
