@@ -6,7 +6,15 @@
     "declarationMap": false,
     "noEmit": true,
     "allowImportingTsExtensions": false,
-    "rootDir": "."
+    "rootDir": ".",
+    "paths": {
+      "@testlease/protocol": ["./packages/protocol/src/index.ts"],
+      "@testlease/core": ["./packages/core/src/index.ts"],
+      "@testlease/client": ["./packages/client/src/index.ts"],
+      "@testlease/server": ["./packages/server/src/index.ts"],
+      "@testlease/mcp": ["./packages/mcp/src/index.ts"],
+      "@testlease/playwright": ["./packages/playwright/src/index.ts"]
+    }
   },
   "include": [
     "packages/*/src/**/*.ts",
