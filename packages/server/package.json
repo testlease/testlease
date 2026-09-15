@@ -1,6 +1,6 @@
 {
   "name": "@testlease/server",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "TestLease HTTP server: versioned REST API, token auth, and MCP Streamable HTTP endpoint",
   "license": "Apache-2.0",
   "type": "module",
