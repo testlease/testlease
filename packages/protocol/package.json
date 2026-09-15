@@ -1,6 +1,6 @@
 {
   "name": "@testlease/protocol",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Wire types, error codes and the framework-neutral API contract for TestLease",
   "license": "Apache-2.0",
   "type": "module",
