@@ -157,7 +157,10 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
   const fixtures: Record<string, unknown> = {};
 
   fixtures.testleaseClient = [
-    async (_args: object, use: (c: TestLeaseClient) => Promise<void>, workerInfo: WorkerInfo) => {
+    // Playwright parses fixture functions and requires the first parameter to be an object
+    // destructuring pattern, even when no other fixtures are needed.
+    // eslint-disable-next-line no-empty-pattern
+    async ({}: object, use: (c: TestLeaseClient) => Promise<void>, workerInfo: WorkerInfo) => {
       const client = makeClient();
       const runId = options.runId ?? detectRunId() ?? `local-${Date.now().toString(36)}`;
       const project = projectName(workerInfo);

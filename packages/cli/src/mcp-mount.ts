@@ -1,15 +1,36 @@
 import type { Logger, TestLeaseConfig, TestLeaseEngine } from '@testlease/core';
-import type { TestLeaseApp } from '@testlease/server';
+import { createMcpHttpHandler } from '@testlease/mcp';
+import {
+  createAuthenticatorFromConfig,
+  isLoopbackHost,
+  type TestLeaseApp,
+} from '@testlease/server';
 
 /**
- * Mounts the MCP Streamable HTTP endpoint at /mcp. Implemented by the MCP phase;
- * until then serving MCP over HTTP is a no-op and /healthz reports mcp.http accordingly.
+ * Mounts MCP Streamable HTTP at /mcp on the REST server. Authentication reuses the REST token
+ * authenticator; each MCP session acts as the token's principal.
  */
-export function mountMcp(
-  _app: TestLeaseApp,
-  _engine: TestLeaseEngine,
-  _config: TestLeaseConfig,
+export async function mountMcp(
+  app: TestLeaseApp,
+  engine: TestLeaseEngine,
+  config: TestLeaseConfig,
   logger: Logger,
-): void {
-  logger.warn({ event: 'mcp.unavailable' }, 'MCP over HTTP is not available in this build');
+): Promise<void> {
+  const authenticator = await createAuthenticatorFromConfig(engine);
+  const handler = createMcpHttpHandler({
+    loopback: isLoopbackHost(config.server.host),
+    allowQuarantine: config.mcp.allowQuarantine,
+    version: engine.config ? '0.1.0' : '0.1.0',
+    authenticate: (request) => {
+      const auth = authenticator.authenticate(request.headers.get('authorization') ?? undefined);
+      if (!auth) return null;
+      return { principal: auth.principal, api: engine.api.as(auth.principal) };
+    },
+    log: (level, obj, msg) => logger[level](obj, msg),
+  });
+  app.all('/mcp', (c) => handler.fetch(c.req.raw));
+  logger.info(
+    { event: 'mcp.mounted', path: '/mcp', quarantineTool: config.mcp.allowQuarantine },
+    'MCP Streamable HTTP endpoint mounted',
+  );
 }

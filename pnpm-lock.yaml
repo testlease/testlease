@@ -133,6 +133,9 @@ importers:
       '@testlease/core':
         specifier: workspace:*
         version: link:../core
+      '@testlease/server':
+        specifier: workspace:*
+        version: link:../server
 
   packages/playwright:
     dependencies:

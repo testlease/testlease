@@ -5,6 +5,7 @@ import { registerReadCommands } from './commands/read.js';
 import { registerWriteCommands } from './commands/write.js';
 import { registerExecCommand } from './commands/exec.js';
 import { CLI_VERSION, registerServeCommand } from './commands/serve.js';
+import { registerMcpCommand } from './commands/mcp.js';
 import { runDoctor } from './doctor.js';
 
 export interface CliIo {
@@ -47,6 +48,7 @@ export function buildProgram(io: CliIo): { program: Command; getCtx: () => CliCo
   registerWriteCommands(program, getCtx);
   registerExecCommand(program, getCtx);
   registerServeCommand(program, getCtx);
+  registerMcpCommand(program, getCtx);
 
   program
     .command('doctor')

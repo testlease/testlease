@@ -10,7 +10,8 @@ export interface StartServerOptions {
   /** Overrides `engine.config.server.host` / `.port`. Port 0 picks a free port. */
   host?: string;
   port?: number;
-  extend?: (app: TestLeaseApp) => void;
+  /** Mount additional routes (e.g. the MCP endpoint) before the server starts listening. */
+  extend?: (app: TestLeaseApp) => void | Promise<void>;
 }
 
 export interface RunningServer {
@@ -73,8 +74,8 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     authenticator,
     logger,
     bodyLimitBytes: engine.config.server.requestBodyLimitBytes,
-    extend: options.extend,
   });
+  await options.extend?.(app);
 
   const server = await new Promise<ServerType>((resolve, reject) => {
     function onError(err: Error): void {
