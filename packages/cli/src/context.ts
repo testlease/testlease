@@ -23,7 +23,7 @@ export const DEFAULT_URL = 'http://127.0.0.1:4747';
 
 export function defaultCliOwner(env: NodeJS.ProcessEnv): string {
   if (env.TESTLEASE_OWNER) return env.TESTLEASE_OWNER;
-  let user = 'user';
+  let user: string;
   try {
     user = userInfo().username;
   } catch {

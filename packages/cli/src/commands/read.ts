@@ -4,10 +4,15 @@ import { formatDuration } from '@testlease/core';
 import type { CliContext } from '../context.js';
 import { EXIT } from '../output.js';
 
+function stringify(v: unknown): string {
+  if (v === null || v === undefined) return String(v);
+  return typeof v === 'object' ? JSON.stringify(v) : typeof v === 'string' ? v : JSON.stringify(v);
+}
+
 export function formatEvent(e: LeaseEvent, when: (ms: number) => string): string[] {
   const details = e.details
     ? Object.entries(e.details)
-        .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+        .map(([k, v]) => `${k}=${stringify(v)}`)
         .join(' ')
     : '';
   return [
