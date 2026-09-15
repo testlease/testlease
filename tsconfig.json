@@ -23,5 +23,5 @@
     "vitest.config.ts",
     "eslint.config.js"
   ],
-  "exclude": ["**/dist/**", "**/node_modules/**"]
+  "exclude": ["**/dist/**", "**/node_modules/**", "packages/playwright/test/fixtures/**"]
 }
