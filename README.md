@@ -374,8 +374,8 @@ those runs, not projections. CI repeats them on Linux with Node 22 and 24.
 | No MCP response contains secret values                 | every tool result, resource and error text scanned for the configured secret values _and_ references                                                                                                                                               |
 | Deterministic CI checks                                | format, lint (type-aware), typecheck, build, package validation, 5 test projects, coverage thresholds (statements 88 %, branches 76 %, functions 88 %, lines 90 % on in-process code), Docker smoke test                                           |
 
-Docker: the image definition was validated by building the same production bundle locally
-(`pnpm deploy`) and running it; the container build itself runs in CI.
+Docker: the production bundle was validated locally with `pnpm deploy`; the image itself was built
+and smoke-tested by CI on ubuntu (health check, 401 without token, 200 with token).
 
 ## Known limitations
 

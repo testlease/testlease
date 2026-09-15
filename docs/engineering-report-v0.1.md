@@ -105,9 +105,21 @@ No race condition was found in the leasing engine itself in any run.
 - `exec` redaction is exact-substring only (documented trust boundary).
 - Only the `env:` secret provider.
 - The Docker image was not built on the reference machine (no Docker); the production bundle it
-  contains was validated with `pnpm deploy` and CI builds and smoke-tests the image.
+  contains was validated with `pnpm deploy`. GitHub Actions built the image on ubuntu and its
+  smoke test passed (`/healthz` ok, `/v1/pools` 401 without token, 200 with token).
 - Coverage numbers cover in-process code; the CLI and the Playwright adapter run in child
   processes and are verified end to end but not measured.
+
+## First CI run on GitHub (2026-09-15, `cozgur/testlease`, private)
+
+All seven jobs green on Linux after two fixes that a fresh clone needed: type-aware lint and the
+root typecheck ran before `pnpm build`, so `@testlease/*` imports in test files resolved to
+not-yet-built `dist/*.d.ts` (fixed with `paths` to source in the root tsconfig) and the Playwright
+fixture project, which imports `dist` on purpose, is excluded from the root typecheck. Jobs:
+format/lint/typecheck/build/package validation; unit + concurrency on Node 22 and Node 24;
+HTTP integration + CLI e2e + MCP; Playwright with real Chromium plus the dogfooding demo;
+coverage thresholds; Docker build + smoke test. Dependabot opened six action/base-image bump PRs;
+its npm run failed because `engines.pnpm >=10` let it pick pnpm 11 — pinned to `^10`.
 
 ## Postponed to v0.2
 
