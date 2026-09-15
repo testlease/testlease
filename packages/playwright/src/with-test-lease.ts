@@ -80,8 +80,8 @@ function fixtureErrorMessage(name: string, cfg: LeaseFixtureConfig, err: unknown
  * per test. Acquire, heartbeat, release and evidence are automatic.
  */
 export function withTestLease<
-  T extends {},
-  W extends {},
+  T extends object,
+  W extends object,
   F extends Record<string, LeaseFixtureConfig>,
 >(
   base: TestType<T, W>,
@@ -119,8 +119,8 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
     purpose: string,
   ): Promise<{ result: ResolveResult; secrets: Record<string, string>; secretsResolved: boolean }> {
     let lease: Lease;
-    let reused = false;
-    let waitedMs = 0;
+    let reused: boolean;
+    let waitedMs: number;
     try {
       const raw = await client.acquire({
         pool: cfg.pool,
@@ -137,7 +137,7 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
       lease = new Lease(client, raw.lease);
       if (heartbeat) lease.startHeartbeat();
     } catch (err) {
-      throw new Error(fixtureErrorMessage(name, cfg, err));
+      throw new Error(fixtureErrorMessage(name, cfg, err), { cause: err });
     }
     let secrets: Record<string, string> = {};
     let secretsResolved = true;
@@ -146,7 +146,7 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
         secrets = await lease.secrets();
       } catch (err) {
         await lease.release().catch(() => undefined);
-        throw new Error(fixtureErrorMessage(name, cfg, err));
+        throw new Error(fixtureErrorMessage(name, cfg, err), { cause: err });
       }
     } else if (cfg.secrets === false) {
       secretsResolved = false;
@@ -157,7 +157,7 @@ export function createTestLeaseFixtures<F extends Record<string, LeaseFixtureCon
   const fixtures: Record<string, unknown> = {};
 
   fixtures.testleaseClient = [
-    async ({}: object, use: (c: TestLeaseClient) => Promise<void>, workerInfo: WorkerInfo) => {
+    async (_args: object, use: (c: TestLeaseClient) => Promise<void>, workerInfo: WorkerInfo) => {
       const client = makeClient();
       const runId = options.runId ?? detectRunId() ?? `local-${Date.now().toString(36)}`;
       const project = projectName(workerInfo);

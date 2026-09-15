@@ -31,5 +31,5 @@ export function ensureRunId(env: NodeJS.ProcessEnv = process.env): string {
 
 /** Sanitises a value for use inside an owner string (no whitespace or control characters). */
 export function ownerSegment(value: string): string {
-  return value.replace(/[\s\x00-\x1f/]+/g, '-').slice(0, 60) || 'x';
+  return value.replace(/[\s/]+|\p{Cc}+/gu, '-').slice(0, 60) || 'x';
 }
