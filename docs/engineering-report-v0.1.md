@@ -173,6 +173,21 @@ current text and asserted. The v0.1 test that expected a waiter to die with `SER
 on restart was updated: the client now retries, and with the server returning on another port the
 truthful final error is `UNAVAILABLE`.
 
+### Release 0.2.0
+
+- Merging the version PR published all seven packages at `0.2.0`; `changesets/action@v2` pushed
+  the seven tags and created the GitHub Releases itself (the v1 gap is closed).
+- Two Release runs that started seconds later (Dependabot merges) failed with npm `E409 Cannot
+publish over previously staged version` — the registry had not yet exposed 0.2.0 when
+  `changeset publish` re-checked. Transient; the next runs succeeded with nothing to publish.
+- Merging Dependabot's `node:26-alpine` bump broke the Docker build: Node 26 images ship no
+  `corepack` (`exit 127`). Fixed by installing pnpm with `npm i -g pnpm@10.26.0` and pinning
+  `node:22-alpine`; Dependabot now ignores Node major bumps for the image.
+- GitHub emits no push event when more than three tags arrive at once, so the tag-triggered
+  Docker job can never fire after a changesets publish. The Docker job now runs in the same
+  Release run when `publishedPackages` contains `testlease` (manual dispatch and single-tag push
+  remain as fallbacks). The 0.2.0 image was published with a manual dispatch.
+
 ## Deferred to v0.3
 
 Optional per-lease tokens (ADR-0014), PostgreSQL store (only on evidence of need), Vault/AWS

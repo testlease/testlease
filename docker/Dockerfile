@@ -7,9 +7,12 @@
 #
 # better-sqlite3 ships prebuilt binaries for linux-musl, so no compiler is needed.
 
-FROM node:26-alpine AS build
+# Node 22 (LTS) is what TestLease is tested on (CI runs 22 and 24). Major bumps of this base
+# image are excluded from Dependabot: better-sqlite3 must ship a prebuilt binary for the Node ABI.
+FROM node:22-alpine AS build
 WORKDIR /src
-RUN corepack enable && corepack prepare pnpm@10.26.0 --activate
+# Install pnpm directly: newer Node images no longer ship corepack (node:26-alpine broke the build).
+RUN npm install -g pnpm@10.26.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.build.json ./
 COPY packages ./packages
 COPY examples/vanilla/package.json ./examples/vanilla/package.json
@@ -20,7 +23,7 @@ RUN pnpm build
 # Produce a self-contained, production-only copy of the `testlease` package.
 RUN pnpm --filter testlease deploy --prod --legacy /out
 
-FROM node:26-alpine AS runtime
+FROM node:22-alpine AS runtime
 ENV NODE_ENV=production \
     TESTLEASE_HOST=0.0.0.0 \
     TESTLEASE_PORT=4747 \

@@ -18,3 +18,7 @@ updates:
     directory: /docker
     schedule:
       interval: weekly
+    ignore:
+      # Node major bumps need a tested better-sqlite3 prebuild; bump them deliberately.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']

@@ -2,8 +2,10 @@ name: Release
 
 # Publishing is gated: on pushes to main this workflow opens/updates a "Version Packages" PR from
 # changesets and publishes to npm only when that PR is merged AND the NPM_TOKEN secret exists.
-# `changeset publish` then creates tags such as `testlease@0.1.0`; the tag push triggers the
-# Docker job, which publishes ghcr.io/<owner>/testlease:<version> and :latest.
+# When `testlease` was just published, the Docker job builds ghcr.io/<owner>/testlease:<version>
+# and :latest in the same run. (changesets pushes all package tags at once, and GitHub emits no
+# push event for more than three tags, so a tag trigger alone would never fire; it is kept for
+# manual `git push origin testlease@x.y.z`.)
 on:
   push:
     branches: [main]
@@ -26,6 +28,9 @@ jobs:
     name: Version PR / npm publish
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'testlease/testlease'
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -40,6 +45,7 @@ jobs:
       - run: pnpm build
       - run: pnpm test:unit
       - name: Create release PR or publish
+        id: changesets
         uses: changesets/action@v2
         with:
           # v2 renamed the inputs (publish -> publish-script, title -> pr-title, commit -> commit-message)
