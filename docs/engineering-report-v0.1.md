@@ -188,6 +188,21 @@ publish over previously staged version` — the registry had not yet exposed 0.2
   Release run when `publishedPackages` contains `testlease` (manual dispatch and single-tag push
   remain as fallbacks). The 0.2.0 image was published with a manual dispatch.
 
+### Release 0.2.1
+
+- `testlease --version`, `/healthz`, the client user-agent and the MCP server identity read the
+  version from each package's `package.json` at runtime; the published 0.2.0 had introduced itself
+  as `0.1.0` from hard-coded constants. Unit and end-to-end tests now compare the reported version
+  with `package.json`, so it cannot drift again. Found by installing the published packages in a
+  clean project with npm and using them as an outsider would.
+- The same audit confirmed the rest of the packaging: metadata complete, LICENSE and README in the
+  tarballs, no `workspace:` ranges, `npm audit` clean, types resolve under both `nodenext` and
+  `bundler`, `npx testlease` usable with no configuration.
+- The Docker-publish-from-release-job change of 0.2.0 had silently not applied: the patch matched
+  on `actions/checkout@v4`, which Dependabot had already bumped to `@v7`, so the string replace did
+  nothing and the old tag-only condition stayed. This is the third time an unasserted text patch
+  failed quietly; patches are now applied with asserted anchors. Fixed for 0.2.1 onward.
+
 ## Deferred to v0.3
 
 Optional per-lease tokens (ADR-0014), PostgreSQL store (only on evidence of need), Vault/AWS
