@@ -157,7 +157,7 @@ async function checkServer(ctx: CliContext, findings: Finding[]): Promise<void> 
     findings.push({
       level: 'fail',
       check: 'server',
-      detail: `${ctx.url}: ${(err as TestLeaseError).message}`,
+      detail: `${ctx.url}: ${(err as TestLeaseError).message.replace(/ Try: testlease doctor$/, '')} Start one with \`testlease serve\`, or point --url / TESTLEASE_URL at a running server.`,
     });
     return;
   }

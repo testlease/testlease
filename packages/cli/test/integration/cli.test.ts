@@ -82,6 +82,18 @@ describe('testlease CLI', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it('reports the real package version everywhere', async () => {
+    const pkg = JSON.parse(readFileSync(join(here, '..', '..', 'package.json'), 'utf8')) as {
+      version: string;
+    };
+    const v = await run(['--version'], env);
+    expect(v.stdout.trim()).toBe(pkg.version);
+    const status = await run(['status', '--json'], env);
+    expect((JSON.parse(status.stdout) as { health: { version: string } }).health.version).toBe(
+      pkg.version,
+    );
+  });
+
   it('status and pools render tables', async () => {
     const status = await run(['status'], env);
     expect(status.code).toBe(0);

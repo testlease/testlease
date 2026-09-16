@@ -4,7 +4,8 @@ import { EXIT, reportError } from './output.js';
 import { registerReadCommands } from './commands/read.js';
 import { registerWriteCommands } from './commands/write.js';
 import { registerExecCommand } from './commands/exec.js';
-import { CLI_VERSION, registerServeCommand } from './commands/serve.js';
+import { registerServeCommand } from './commands/serve.js';
+import { CLI_VERSION } from './version.js';
 import { registerMcpCommand } from './commands/mcp.js';
 import { runDoctor } from './doctor.js';
 

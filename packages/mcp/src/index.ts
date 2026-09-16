@@ -7,3 +7,4 @@ export {
   type McpHttpIdentity,
 } from './http.js';
 export * from './sanitize.js';
+export { MCP_VERSION } from './version.js';

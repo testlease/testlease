@@ -1,7 +1,6 @@
 export {
   TestLeaseClient,
   defaultOwner,
-  CLIENT_VERSION,
   type TestLeaseClientOptions,
   type AcquireLeaseOptions,
 } from './client.js';
@@ -14,3 +13,4 @@ export {
 } from './lease.js';
 export { HttpTransport, type HttpOptions, type RequestOptions } from './http.js';
 export * from '@testlease/protocol';
+export { CLIENT_VERSION } from './version.js';

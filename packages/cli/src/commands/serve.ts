@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import { ConfigError, createTestLease, loadRuntimeConfig, type Logger } from '@testlease/core';
 import { createLogger, startServer } from '@testlease/server';
 import type { CliContext } from '../context.js';
+import { CLI_VERSION } from '../version.js';
 import { EXIT } from '../output.js';
 
 export interface ServeOptions {
@@ -138,8 +139,6 @@ export async function runServe(
   });
   return EXIT.OK;
 }
-
-export const CLI_VERSION = '0.1.0';
 
 export function registerServeCommand(program: Command, getCtx: () => CliContext): void {
   program

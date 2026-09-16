@@ -1,6 +1,7 @@
 import { hostname, userInfo } from 'node:os';
 import { TestLeaseClient } from '@testlease/client';
 import { Output } from './output.js';
+import { CLI_VERSION } from './version.js';
 
 export interface GlobalOptions {
   url?: string;
@@ -53,6 +54,11 @@ export function createContext(
     owner,
     env: io.env,
     client: () =>
-      new TestLeaseClient({ baseUrl: url, token, owner, userAgent: 'testlease-cli/0.1.0' }),
+      new TestLeaseClient({
+        baseUrl: url,
+        token,
+        owner,
+        userAgent: `testlease-cli/${CLI_VERSION}`,
+      }),
   };
 }

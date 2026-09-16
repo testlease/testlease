@@ -32,6 +32,7 @@ import {
   type WhoAmIResponse,
 } from '@testlease/protocol';
 import { HttpTransport } from './http.js';
+import { CLIENT_VERSION } from './version.js';
 import { Lease, type HeartbeatOptions } from './lease.js';
 
 export interface TestLeaseClientOptions {
@@ -319,8 +320,6 @@ export class TestLeaseClient implements TestLeaseApi, SecretsApi, AdminApi {
     });
   }
 }
-
-export const CLIENT_VERSION = '0.1.0';
 
 function enc(segment: string): string {
   if (!segment)

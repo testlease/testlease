@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import { serveStdio } from '@testlease/mcp';
 import type { CliContext } from '../context.js';
 import { EXIT, reportError } from '../output.js';
+import { CLI_VERSION } from '../version.js';
 
 export function registerMcpCommand(program: Command, getCtx: () => CliContext): void {
   program
@@ -29,6 +30,7 @@ export function registerMcpCommand(program: Command, getCtx: () => CliContext): 
         owner,
         allowQuarantine: opts.allowQuarantine ?? false,
         maxWaitSeconds: Math.max(0, Number(opts.maxWait) || 120),
+        version: CLI_VERSION,
       });
       ctx.out.err(
         ctx.out.paint('dim', `testlease mcp: serving stdio for ${ctx.url} as owner ${owner}`),

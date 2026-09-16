@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { MCP_VERSION } from './version.js';
 import { isTestLeaseError, type TestLeaseApi, type TestLeaseError } from '@testlease/protocol';
 import {
   toMcpAcquireResult,
@@ -62,7 +63,7 @@ export function createTestLeaseMcpServer(options: TestLeaseMcpOptions): McpServe
   const defaultWait = options.defaultWaitSeconds ?? 0;
 
   const server = new McpServer(
-    { name: MCP_SERVER_NAME, version: options.version ?? '0.1.0' },
+    { name: MCP_SERVER_NAME, version: options.version ?? MCP_VERSION },
     {
       instructions: [
         'TestLease hands out exclusive, expiring leases on shared test resources (accounts, tenants, devices).',

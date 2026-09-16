@@ -1,5 +1,6 @@
 import type { Logger, TestLeaseConfig, TestLeaseEngine } from '@testlease/core';
 import { createMcpHttpHandler } from '@testlease/mcp';
+import { CLI_VERSION } from './version.js';
 import {
   createAuthenticatorFromConfig,
   isLoopbackHost,
@@ -22,7 +23,7 @@ export async function mountMcp(
   const handler = createMcpHttpHandler({
     loopback: isLoopbackHost(config.server.host),
     allowQuarantine: config.mcp.allowQuarantine,
-    version: engine.config ? '0.1.0' : '0.1.0',
+    version: CLI_VERSION,
     authenticate: (request) => {
       const auth = authenticator.authenticate(request.headers.get('authorization') ?? undefined);
       if (!auth) return null;
