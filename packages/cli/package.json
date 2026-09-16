@@ -1,6 +1,6 @@
 {
   "name": "testlease",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stop parallel tests from fighting over shared test accounts and environments. Server + CLI for TestLease.",
   "license": "Apache-2.0",
   "type": "module",
