@@ -1,5 +1,20 @@
 # testlease
 
+## 0.2.1
+
+### Patch Changes
+
+- 9d83df0: Report the real package version: `testlease --version`, `/healthz`, the client user-agent and the
+  MCP server identity read the version from `package.json` instead of a hard-coded `0.1.0` (the
+  published 0.2.0 introduced itself as 0.1.0). `testlease doctor` no longer tells you to run
+  `testlease doctor` when the server is unreachable.
+- Updated dependencies [9d83df0]
+  - @testlease/client@0.2.1
+  - @testlease/mcp@0.2.1
+  - @testlease/core@0.2.1
+  - @testlease/server@0.2.1
+  - @testlease/protocol@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
