@@ -106,8 +106,20 @@ describe('testlease CLI', () => {
   });
 
   it('acquire → inspect → events → release, with ownership hints on mismatch', async () => {
+    // Explicit TTL: the pool's 2s default can elapse before the wrong-owner release under load,
+    // which then reports already_expired instead of an ownership mismatch (#24).
     const acq = await run(
-      ['acquire', 'buyers', '--tag', 'region=nl', '--purpose', 'cli smoke', '--json'],
+      [
+        'acquire',
+        'buyers',
+        '--tag',
+        'region=nl',
+        '--ttl',
+        '30s',
+        '--purpose',
+        'cli smoke',
+        '--json',
+      ],
       env,
     );
     expect(acq.code, acq.stderr).toBe(0);
@@ -117,7 +129,7 @@ describe('testlease CLI', () => {
 
     const inspect = await run(['inspect', 'buyers'], env);
     expect(inspect.stdout).toMatch(
-      /buyer-01\s+LEASED\s+region=nl\s+cli-test\s+in 00:0\d\s+cli smoke/,
+      /buyer-01\s+LEASED\s+region=nl\s+cli-test\s+in 00:(?:[0-2]\d|30)\s+cli smoke/,
     );
 
     const events = await run(['events', lease.leaseId], env);
