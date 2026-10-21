@@ -2,6 +2,8 @@
  * OpenAPI 3.1 description of the v1 API. Hand-maintained; `test/integration/openapi.test.ts`
  * fails when a registered route is missing here or a documented path has no route.
  */
+import { POOL_EVENTS_LIMIT } from '@testlease/protocol';
+
 const errorResponse = (description: string) => ({
   description,
   content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorBody' } } },
@@ -69,6 +71,37 @@ export const openapiDocument = {
         summary: 'Pool detail with resources and waiters',
         parameters: [poolParam],
         responses: { '200': okJson('PoolDetail'), '404': errorResponse('POOL_NOT_FOUND') },
+      },
+    },
+    '/v1/pools/{pool}/events': {
+      get: {
+        summary: 'Pool event history, newest first (at DESC, then seq DESC)',
+        parameters: [
+          poolParam,
+          {
+            name: 'since',
+            in: 'query',
+            description: 'Inclusive lower bound on the event time (epoch ms).',
+            schema: { type: 'integer', minimum: 0 },
+          },
+          {
+            name: 'limit',
+            in: 'query',
+            description: `Values above ${POOL_EVENTS_LIMIT.max} are capped to ${POOL_EVENTS_LIMIT.max}.`,
+            schema: {
+              type: 'integer',
+              minimum: 1,
+              maximum: POOL_EVENTS_LIMIT.max,
+              default: POOL_EVENTS_LIMIT.default,
+            },
+          },
+        ],
+        responses: {
+          '200': okJson('Events'),
+          '400': errorResponse('INVALID_REQUEST'),
+          '403': errorResponse('FORBIDDEN'),
+          '404': errorResponse('POOL_NOT_FOUND'),
+        },
       },
     },
     '/v1/resources/{resourceId}': {

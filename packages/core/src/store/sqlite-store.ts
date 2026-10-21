@@ -275,6 +275,10 @@ export class SqliteStore {
         `SELECT * FROM lease_events WHERE resource_id = ? ORDER BY seq DESC LIMIT ?`,
       ),
       recentEvents: db.prepare(`SELECT * FROM lease_events ORDER BY seq DESC LIMIT ?`),
+      // Served by lease_events_pool_at (pool, at); seq breaks ties within one millisecond.
+      eventsByPool: db.prepare(
+        `SELECT * FROM lease_events WHERE pool = ? AND at >= ? ORDER BY at DESC, seq DESC LIMIT ?`,
+      ),
 
       integrityLeasedWithoutLease: db.prepare(`
         SELECT r.id AS resource_id, r.active_lease_id AS lease_id FROM resources r
@@ -524,6 +528,11 @@ export class SqliteStore {
 
   recentEvents(limit = 100): EventRow[] {
     return (this.stmts.recentEvents.all(limit) as RawEvent[]).map(mapEvent).reverse();
+  }
+
+  /** Newest first: `at` DESC, then `seq` DESC. */
+  eventsByPool(pool: string, sinceMs: number, limit: number): EventRow[] {
+    return (this.stmts.eventsByPool.all(pool, sinceMs, limit) as RawEvent[]).map(mapEvent);
   }
 
   // ---- integrity ---------------------------------------------------------

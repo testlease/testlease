@@ -81,6 +81,11 @@ export const resolveSecretsRequestSchema = z.strictObject({
   owner: ownerSchema,
 });
 
+export const poolEventsQuerySchema = z.strictObject({
+  sinceMs: z.number().int().min(0).optional(),
+  limit: z.number().int().min(1).optional(),
+});
+
 export const idSchema = idString.regex(
   /^[A-Za-z0-9][A-Za-z0-9._:-]*$/,
   'identifiers may contain letters, digits, ".", "_", ":" and "-"',
