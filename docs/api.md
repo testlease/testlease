@@ -129,6 +129,10 @@ Since v0.2 heartbeats increment `renewCount` on the lease instead of producing `
 events (unless the TTL changes or `history.recordRenewals` is on); events and ended leases older
 than `history.retention` are pruned.
 
+`GET /v1/pools/:pool/events` returns `POOL_NOT_FOUND` for a pool that is no longer in the
+configuration, even though its events are kept until pruned; resource history stays readable via
+`GET /v1/resources/:id/events`.
+
 ## Client retry semantics
 
 `SERVER_SHUTTING_DOWN` (503) and connection failures are retryable: the TypeScript client retries
