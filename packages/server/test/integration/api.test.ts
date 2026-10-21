@@ -22,7 +22,7 @@ describe('REST API (insecure-local mode)', () => {
       status: 'ok',
       name: 'testlease',
       auth: { mode: 'insecure-local' },
-      db: { schemaVersion: 2 },
+      db: { schemaVersion: 3 },
     });
     const who = await ts.client().whoami();
     expect(who.principal).toBe('local');

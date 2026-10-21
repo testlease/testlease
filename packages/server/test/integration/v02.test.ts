@@ -63,7 +63,7 @@ describe('v0.2 operator features over HTTP', () => {
     expect(text).toMatch(/testlease_pool_resources\{pool="buyers",state="LEASED"\} \d/);
     expect(text).toMatch(/testlease_acquisitions_total\{pool="buyers"\} [23]/);
     expect(text).toMatch(/testlease_releases_total\{pool="buyers"\} 1/);
-    expect(text).toMatch(/testlease_info\{schema_version="2"\} 1/);
+    expect(text).toMatch(/testlease_info\{schema_version="3"\} 1/);
     expect((await fetch(`${ts.url}/metrics`)).headers.get('content-type')).toMatch(/text\/plain/);
   });
 

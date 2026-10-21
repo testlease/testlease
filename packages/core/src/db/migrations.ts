@@ -104,6 +104,15 @@ CREATE INDEX lease_events_at ON lease_events(at);
 CREATE INDEX leases_state_ended ON leases(state, ended_at);
 `,
   },
+  {
+    version: 3,
+    name: 'lease-events-pool-at-index',
+    up: `
+-- Pool-scoped event history: seek straight to one pool's window instead of scanning every pool's
+-- events through lease_events_at.
+CREATE INDEX lease_events_pool_at ON lease_events(pool, at);
+`,
+  },
 ];
 
 export interface MigrationResult {
