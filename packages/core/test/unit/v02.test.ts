@@ -33,8 +33,8 @@ describe('migration 2 (v0.2)', () => {
     expect(currentSchemaVersion(db)).toBe(1);
 
     const result = migrate(db);
-    expect(result.applied).toEqual([2]);
-    expect(currentSchemaVersion(db)).toBe(2);
+    expect(result.applied).toEqual([2, 3]);
+    expect(currentSchemaVersion(db)).toBe(3);
     const row = db.prepare(`SELECT renew_count FROM leases WHERE id = 'l1'`).get() as {
       renew_count: number;
     };
