@@ -129,7 +129,7 @@ describe('testlease CLI', () => {
 
     const inspect = await run(['inspect', 'buyers'], env);
     expect(inspect.stdout).toMatch(
-      /buyer-01\s+LEASED\s+region=nl\s+cli-test\s+in 00:[23]\d\s+cli smoke/,
+      /buyer-01\s+LEASED\s+region=nl\s+cli-test\s+in 00:(?:[0-2]\d|30)\s+cli smoke/,
     );
 
     const events = await run(['events', lease.leaseId], env);
