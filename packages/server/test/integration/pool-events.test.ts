@@ -240,15 +240,20 @@ describe('GET /v1/pools/:pool/events', () => {
       }
     });
 
-    it.each(['since=abc', 'limit=abc', 'since=-1', 'limit=-1', 'since=1.5', 'limit=1.5'])(
-      '%s returns 400 INVALID_REQUEST',
-      async (query) => {
-        expect(await get(`/v1/pools/buyers/events?${query}`)).toMatchObject({
-          status: 400,
-          body: { error: { code: 'INVALID_REQUEST' } },
-        });
-      },
-    );
+    it.each([
+      'since=abc',
+      'limit=abc',
+      'limit=0',
+      'since=-1',
+      'limit=-1',
+      'since=1.5',
+      'limit=1.5',
+    ])('%s returns 400 INVALID_REQUEST', async (query) => {
+      expect(await get(`/v1/pools/buyers/events?${query}`)).toMatchObject({
+        status: 400,
+        body: { error: { code: 'INVALID_REQUEST' } },
+      });
+    });
   });
 
   describe('#13 pool-scoped tokens', () => {

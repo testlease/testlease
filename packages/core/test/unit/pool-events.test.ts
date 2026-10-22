@@ -221,7 +221,7 @@ describe('listPoolEvents (in-process)', () => {
       }
     });
 
-    it.each([{ limit: -1 }, { limit: 1.5 }, { sinceMs: -1 }, { sinceMs: 1.5 }])(
+    it.each([{ limit: 0 }, { limit: -1 }, { limit: 1.5 }, { sinceMs: -1 }, { sinceMs: 1.5 }])(
       'rejects invalid query %j with INVALID_REQUEST',
       async (query) => {
         const error = await expectError<TestLeaseError>(() =>
