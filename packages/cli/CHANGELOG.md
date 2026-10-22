@@ -1,5 +1,18 @@
 # testlease
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [50d98d8]
+- Updated dependencies [8088e63]
+- Updated dependencies [1ae3da1]
+  - @testlease/protocol@0.3.0
+  - @testlease/core@0.3.0
+  - @testlease/server@0.3.0
+  - @testlease/client@0.3.0
+  - @testlease/mcp@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

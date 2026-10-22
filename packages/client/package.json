@@ -1,6 +1,6 @@
 {
   "name": "@testlease/client",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "TypeScript client for TestLease: acquire, heartbeat, release and quarantine shared test resources",
   "license": "Apache-2.0",
   "type": "module",
