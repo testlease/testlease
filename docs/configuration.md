@@ -30,6 +30,10 @@ auth:
       token: env:TESTLEASE_TOKEN_PAYMENTS
       scopes: [lease:read, lease:write, pool:read, secrets:resolve]
       pools: [premium-buyers, payment-tenants]
+    - name: runner # uses leases the agent acquired (v0.4, ADR-0016)
+      token: env:TESTLEASE_TOKEN_RUNNER
+      scopes: [lease:read, lease:write, secrets:resolve]
+      delegateFor: [agent] # may resolve secrets, renew and release the agent's leases
 
 mcp:
   http: true # serve MCP at /mcp on this server
@@ -75,6 +79,13 @@ Client-side: `TESTLEASE_URL`, `TESTLEASE_TOKEN`, `TESTLEASE_OWNER`, `TESTLEASE_R
 | `secrets:resolve` | `POST /v1/leases/:id/secrets` for own active leases                                  |
 
 Default scopes when omitted: `lease:read, lease:write, pool:read`.
+
+## Delegation
+
+`delegateFor` lets a token act on leases acquired by the listed tokens: resolve secrets, renew
+and release, presenting the lease's owner (`testlease exec --lease <id>` does). It does not grant
+quarantine or `force`, it is not transitive, and the token's own scopes and `pools` still apply.
+Events written by a delegate carry `principal` and `onBehalfOf`. See ADR-0016.
 
 ## What changes at restart
 

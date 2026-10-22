@@ -11,6 +11,8 @@ export interface ResolvedToken {
   scopes: Scope[];
   /** Pool allow-list; null = every pool. */
   pools: string[] | null;
+  /** Principals this token may act for on their leases (ADR-0016). */
+  delegateFor: string[];
 }
 
 export interface AuthContext {
@@ -20,6 +22,8 @@ export interface AuthContext {
   scopes: ReadonlySet<Scope>;
   /** Pools this identity may use; null = all. */
   pools: ReadonlySet<string> | null;
+  /** Principals whose leases this identity may resolve, renew and release. */
+  delegateFor: ReadonlySet<string>;
 }
 
 export interface Authenticator {
@@ -64,6 +68,7 @@ export async function resolveTokens(
       hash: hashToken(value),
       scopes: [...t.scopes],
       pools: t.pools ? [...t.pools] : null,
+      delegateFor: t.delegateFor ? [...t.delegateFor] : [],
     });
   }
   return out;
@@ -76,6 +81,7 @@ export function createAuthenticator(tokens: ResolvedToken[]): Authenticator {
       principal: 'local',
       scopes: new Set(ALL_SCOPES),
       pools: null,
+      delegateFor: new Set(),
     };
     return { mode: 'insecure-local', authenticate: () => local };
   }
@@ -97,6 +103,7 @@ export function createAuthenticator(tokens: ResolvedToken[]): Authenticator {
         principal: matched.name,
         scopes: new Set(matched.scopes),
         pools: matched.pools ? new Set(matched.pools) : null,
+        delegateFor: new Set(matched.delegateFor),
       };
     },
   };

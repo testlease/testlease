@@ -58,7 +58,7 @@ mcp         MCP server (stdio bridge over HTTP + Streamable HTTP), secret-free p
 - Expiry decisions use the server's injected `Clock` (`core/src/clock.ts`, monotonic per
   ADR-0015), never client clocks — in core domain code take time from the `Clock`, not `Date.now()`.
 
-Decisions are recorded in `docs/adr/` (ADR-0001…0015); API/config/failure semantics in `docs/*.md`.
+Decisions are recorded in `docs/adr/` (ADR-0001…0016); API/config/failure semantics in `docs/*.md`.
 
 ## Rules (from CONTRIBUTING)
 

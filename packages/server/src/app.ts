@@ -154,7 +154,7 @@ export function createApp(options: CreateAppOptions): TestLeaseApp {
 
   const api = (c: Context<AppEnv>) => {
     const auth = c.get('auth');
-    return engine.api.as(auth.principal, { pools: auth.pools });
+    return engine.api.as(auth.principal, { pools: auth.pools, delegateFor: auth.delegateFor });
   };
   const scoped = (c: Context<AppEnv>, scope: Scope) => {
     requireScope(c.get('auth'), scope);

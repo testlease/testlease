@@ -30,7 +30,7 @@ import {
 } from '@testlease/protocol';
 import type { Clock } from '../clock.js';
 import type { SecretResolverRegistry } from '../secrets/resolver.js';
-import type { LeaseService } from './lease-service.js';
+import type { Actor, LeaseService } from './lease-service.js';
 
 export interface LocalApiInfo {
   version: string;
@@ -54,6 +54,8 @@ export interface LocalApiRuntime {
 export interface PrincipalOptions {
   /** Pools this identity may use. `null` = all pools. */
   pools?: ReadonlySet<string> | null;
+  /** Principals whose leases this identity may resolve, renew and release (ADR-0016). */
+  delegateFor?: ReadonlySet<string>;
 }
 
 /**
@@ -66,6 +68,7 @@ export class LocalTestLeaseApi implements TestLeaseApi, SecretsApi, AdminApi {
   readonly service: LeaseService;
   readonly principal: string;
   readonly pools: ReadonlySet<string> | null;
+  readonly delegateFor: ReadonlySet<string>;
   private readonly secrets: SecretResolverRegistry;
   private readonly clock: Clock;
   private readonly info: LocalApiInfo;
@@ -87,6 +90,7 @@ export class LocalTestLeaseApi implements TestLeaseApi, SecretsApi, AdminApi {
     this.runtime = runtime;
     this.principal = principal;
     this.pools = options.pools ?? null;
+    this.delegateFor = options.delegateFor ?? new Set();
   }
 
   /** Returns an API instance acting as another principal (used per request by the server). */
@@ -100,6 +104,10 @@ export class LocalTestLeaseApi implements TestLeaseApi, SecretsApi, AdminApi {
       principal,
       options,
     );
+  }
+
+  private actor(): Actor {
+    return { principal: this.principal, delegateFor: this.delegateFor };
   }
 
   private assertPool(pool: string): void {
@@ -172,12 +180,12 @@ export class LocalTestLeaseApi implements TestLeaseApi, SecretsApi, AdminApi {
 
   async renew(leaseId: string, req: RenewRequest): Promise<RenewResponse> {
     this.leasePool(leaseId);
-    return this.service.renew(leaseId, req, { principal: this.principal });
+    return this.service.renew(leaseId, req, this.actor());
   }
 
   async release(leaseId: string, req: ReleaseRequest): Promise<ReleaseResponse> {
     this.leasePool(leaseId);
-    return this.service.release(leaseId, req, { principal: this.principal });
+    return this.service.release(leaseId, req, this.actor());
   }
 
   async quarantine(leaseId: string, req: QuarantineRequest): Promise<QuarantineResponse> {
@@ -219,9 +227,7 @@ export class LocalTestLeaseApi implements TestLeaseApi, SecretsApi, AdminApi {
     req: ResolveSecretsRequest,
   ): Promise<ResolveSecretsResponse> {
     this.leasePool(leaseId);
-    const { lease, refs } = this.service.secretRefsForLease(leaseId, req.owner, {
-      principal: this.principal,
-    });
+    const { lease, refs } = this.service.secretRefsForLease(leaseId, req.owner, this.actor());
     const secrets: Record<string, string> = {};
     for (const [name, ref] of Object.entries(refs)) {
       secrets[name] = await this.secrets.resolve(ref);
