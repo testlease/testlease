@@ -40,6 +40,9 @@ Claude Desktop / Claude Code style configuration for stdio:
 Errors are tool results with `isError: true` and text `CODE: message` (for example
 `POOL_EXHAUSTED: No matching resource is available right now …` followed by the full diagnostic).
 
+`testlease_diagnose` computes its window start with the MCP process's clock; over the stdio
+bridge that clock can be skewed from the server's, so events at the window edge may fall either way.
+
 Resources: `testlease://pools`, `testlease://pools/{pool}` (with completion), `testlease://leases/{leaseId}`.
 
 ## What the agent sees
