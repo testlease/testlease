@@ -140,28 +140,35 @@ async function expectRealisticDiagnosis(client: Client, engine: TestLeaseEngine)
     })) as ToolResult;
     const after = Date.now();
     expect(res.isError, text(res)).toBeFalsy();
-    const fetched = (await engine.api.listPoolEvents('diag', { sinceMs: 0 })).events.length;
+    const { events } = await engine.api.listPoolEvents('diag', { sinceMs: 0 });
+    const fetched = events.length;
+    const waitedOf = (e: (typeof events)[number]) => e.details?.waitedMs as number;
+    // The source of truth for durations is the event data, not wall time.
+    const waitedAcquires = events
+      .filter((e) => e.type === 'LEASE_ACQUIRED' && waitedOf(e) > 0)
+      .map(waitedOf);
+    const waitedTimeouts = events
+      .filter((e) => e.type === 'ACQUIRE_TIMEOUT' && e.details?.immediate !== true)
+      .map(waitedOf);
+    expect(waitedAcquires).toHaveLength(1);
+    expect(waitedTimeouts).toHaveLength(1);
+    const [acquireWait] = waitedAcquires as [number];
+    const [timeoutWait] = waitedTimeouts as [number];
 
     const d = res.structuredContent as unknown as McpPoolDiagnosis;
     expect(d.pool).toBe('diag');
 
-    const waitedTimes = d.waiting.waitedMs!;
     expect(d.waiting).toMatchObject({ acquired: 7, waited: 1, currentWaiters: 1 });
-    expect(waitedTimes.p50).toBeGreaterThanOrEqual(300);
-    expect(waitedTimes).toEqual({
-      p50: waitedTimes.p50,
-      p95: waitedTimes.p50,
-      max: waitedTimes.p50,
-    });
+    expect(acquireWait).toBeGreaterThan(0);
+    expect(d.waiting.waitedMs).toEqual({ p50: acquireWait, p95: acquireWait, max: acquireWait });
 
     expect(d.poolExhausted).toEqual({ count: 1 });
-    const timeoutTimes = d.acquireTimeouts.waitedMs!;
     expect(d.acquireTimeouts.count).toBe(1);
-    expect(timeoutTimes.p50).toBeGreaterThanOrEqual(300);
-    expect(timeoutTimes).toEqual({
-      p50: timeoutTimes.p50,
-      p95: timeoutTimes.p50,
-      max: timeoutTimes.p50,
+    expect(timeoutWait).toBeGreaterThan(0);
+    expect(d.acquireTimeouts.waitedMs).toEqual({
+      p50: timeoutWait,
+      p95: timeoutWait,
+      max: timeoutWait,
     });
 
     expect(d.expiries).toMatchObject({
