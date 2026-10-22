@@ -32,17 +32,21 @@ export interface McpPoolDiagnosis {
     quarantined: number;
     restored: number;
     reasons: { reason: string; count: number }[];
+    /** Resources quarantined as of now (from getPool), not limited to the window. */
     current: { resourceId: string; reason: string }[];
   };
   contention: {
     attempts: number;
     waitedOrRejected: number;
-    ratio: number;
+    /** waitedOrRejected / attempts; null when there were no attempts (no data, not "no contention"). */
+    ratio: number | null;
     leasesPerResource: { resourceId: string; count: number }[];
   };
   meta: {
+    /** ISO of `window.startMs`; the tool computes it from the MCP process's Date.now(), not health(). */
     windowStart: string;
     windowMinutes: number;
+    /** Events fetched, before filtering (window, ignored types); possiblyTruncated uses the same count. */
     eventsScanned: number;
     possiblyTruncated: boolean;
     abortedAcquiresTracked: false;

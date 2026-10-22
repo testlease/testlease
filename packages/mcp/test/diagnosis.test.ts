@@ -171,7 +171,7 @@ describe('toMcpPoolDiagnosis', () => {
       contention: {
         attempts: 0,
         waitedOrRejected: 0,
-        ratio: 0,
+        ratio: null, // no attempts: no data, which is not the same as no contention
         leasesPerResource: [
           { resourceId: 'buyer-01', count: 0 },
           { resourceId: 'buyer-02', count: 0 },
