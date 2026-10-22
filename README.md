@@ -265,8 +265,8 @@ For a remote server, hosts that support Streamable HTTP connect to `http://host:
 `Authorization: Bearer <token>`; give agents a token _without_ `secrets:resolve`.
 
 Tools: `testlease_list_pools`, `testlease_pool_status`, `testlease_acquire`, `testlease_get_lease`,
-`testlease_renew`, `testlease_release`, `testlease_lease_events`, and — only when the operator
-enables it — `testlease_quarantine`. Read-only resources: `testlease://pools`,
+`testlease_renew`, `testlease_release`, `testlease_lease_events`, `testlease_diagnose`, and — only
+when the operator enables it — `testlease_quarantine`. Read-only resources: `testlease://pools`,
 `testlease://pools/{pool}`, `testlease://leases/{leaseId}`. Tools carry `readOnlyHint` /
 `destructiveHint` / `idempotentHint` annotations.
 

@@ -35,10 +35,26 @@ Claude Desktop / Claude Code style configuration for stdio:
 | `testlease_renew`        | idempotent                                                                    | `{ leaseId, ttlSeconds? }`                                                                    |
 | `testlease_release`      | idempotent                                                                    | `{ leaseId }`                                                                                 |
 | `testlease_lease_events` | read-only                                                                     | `{ leaseId }`                                                                                 |
+| `testlease_diagnose`     | read-only, idempotent                                                         | `{ pool, windowMinutes? (default 1440, max 43200) }`                                          |
 | `testlease_quarantine`   | **destructive**, only with `mcp.allowQuarantine: true` / `--allow-quarantine` | `{ leaseId, reason }`                                                                         |
 
 Errors are tool results with `isError: true` and text `CODE: message` (for example
 `POOL_EXHAUSTED: No matching resource is available right now …` followed by the full diagnostic).
+
+`testlease_diagnose` explains pool-level causes of flaky tests over the last `windowMinutes`:
+acquisitions and how long callers waited (nearest-rank p50/p95/max), immediate rejections
+(`poolExhausted`) separately from wait timeouts (`acquireTimeouts`), expiries split into "never
+heartbeated" and "heartbeat stopped" with the top 5 resources and owners, quarantines with their
+reasons and the resources quarantined now, and the contention ratio (attempts that waited or were
+rejected) with leases per resource. It reads at most 5000 events; `meta.possiblyTruncated` is true
+when that limit was reached. Expiries recorded by the reaper can lag by up to one reaper tick, and
+acquires aborted by the caller write no event (`meta.abortedAcquiresTracked: false`). Output is an
+allow-list projection: counts, durations, resource ids, owners and quarantine reasons only.
+
+`testlease_diagnose` computes its window start with the MCP process's clock (`Date.now()`), while
+event times come from the server's monotonic clock. The two can differ — across machines over the
+stdio bridge, and even in-process once the wall clock has been adjusted — so events at the window
+edge may fall either way.
 
 Resources: `testlease://pools`, `testlease://pools/{pool}` (with completion), `testlease://leases/{leaseId}`.
 

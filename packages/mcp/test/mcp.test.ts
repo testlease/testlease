@@ -13,75 +13,22 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { TestLeaseEngine } from '@testlease/core';
-import { startServer, type RunningServer } from '@testlease/server';
-import { createMcpHttpHandler } from '../src/index.js';
-import { assertNoSecrets, makeEngine, SECRETS, sleep } from './helpers.js';
+import type { RunningServer } from '@testlease/server';
+import {
+  assertNoSecrets,
+  connectHttp,
+  makeEngine,
+  SECRETS,
+  sleep,
+  startHttp,
+  text,
+  TOKENS,
+  type ToolResult,
+} from './helpers.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cliBin = join(here, '..', '..', 'cli', 'bin', 'testlease.js');
-
-interface ToolResult {
-  isError?: boolean;
-  content: { type: string; text?: string }[];
-  structuredContent?: Record<string, unknown>;
-}
-
-function text(r: ToolResult): string {
-  return r.content.map((c) => c.text ?? '').join('\n');
-}
-
-const TOKENS = {
-  tokens: [
-    { name: 'agent', token: 'env:TOKEN_AGENT', scopes: ['lease:read', 'lease:write', 'pool:read'] },
-    { name: 'other', token: 'env:TOKEN_OTHER', scopes: ['lease:read', 'lease:write', 'pool:read'] },
-  ],
-};
-
-async function startHttp(
-  engine: TestLeaseEngine,
-  opts: { allowQuarantine?: boolean } = {},
-): Promise<RunningServer> {
-  return startServer({
-    engine,
-    logger: { trace() {}, debug() {}, info() {}, warn() {}, error() {} },
-    port: 0,
-    extend: (app) => {
-      const handler = createMcpHttpHandler({
-        loopback: true,
-        allowQuarantine: opts.allowQuarantine ?? false,
-        authenticate: (request) => {
-          const header = request.headers.get('authorization') ?? '';
-          const token = header.replace(/^Bearer\s+/i, '');
-          const match =
-            engine.config.auth.tokens.length === 0
-              ? { name: 'local' }
-              : token === SECRETS.TOKEN_AGENT
-                ? { name: 'agent' }
-                : token === SECRETS.TOKEN_OTHER
-                  ? { name: 'other' }
-                  : null;
-          return match ? { principal: match.name, api: engine.api.as(match.name) } : null;
-        },
-      });
-      app.all('/mcp', (c) => handler.fetch(c.req.raw));
-    },
-  });
-}
-
-async function connectHttp(
-  url: string,
-  token?: string,
-): Promise<{ client: Client; transport: StreamableHTTPClientTransport }> {
-  const transport = new StreamableHTTPClientTransport(
-    new URL(`${url}/mcp`),
-    token ? { requestInit: { headers: { Authorization: `Bearer ${token}` } } } : {},
-  );
-  const client = new Client({ name: 'vitest-agent', version: '1.0.0' });
-  await client.connect(transport);
-  return { client, transport };
-}
 
 /** Exercises the full agent workflow and checks every response for secrets. */
 async function agentWorkflow(
@@ -93,6 +40,7 @@ async function agentWorkflow(
   const names = tools.tools.map((t) => t.name).sort();
   expect(names).toEqual([
     'testlease_acquire',
+    'testlease_diagnose',
     'testlease_get_lease',
     'testlease_lease_events',
     'testlease_list_pools',
@@ -108,6 +56,7 @@ async function agentWorkflow(
       'testlease_pool_status',
       'testlease_get_lease',
       'testlease_lease_events',
+      'testlease_diagnose',
     ].includes(t.name);
     expect(t.annotations?.readOnlyHint, t.name).toBe(readOnly);
     expect(t.annotations?.destructiveHint ?? false, t.name).toBe(false);

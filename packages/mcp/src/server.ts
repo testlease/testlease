@@ -1,15 +1,23 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { MCP_VERSION } from './version.js';
-import { isTestLeaseError, type TestLeaseApi, type TestLeaseError } from '@testlease/protocol';
+import {
+  isTestLeaseError,
+  POOL_EVENTS_LIMIT,
+  type TestLeaseApi,
+  type TestLeaseError,
+} from '@testlease/protocol';
 import {
   toMcpAcquireResult,
   toMcpLease,
+  toMcpPoolDiagnosis,
   toMcpPoolStatus,
   toMcpPoolSummary,
   toMcpResource,
   type McpAcquireResult,
   type McpLease,
+  type McpPercentiles,
+  type McpPoolDiagnosis,
   type McpPoolStatus,
   type McpPoolSummary,
 } from './sanitize.js';
@@ -32,6 +40,9 @@ export interface TestLeaseMcpOptions {
 }
 
 export const MCP_SERVER_NAME = 'testlease';
+
+const DIAGNOSE_DEFAULT_WINDOW_MINUTES = 1440;
+const DIAGNOSE_MAX_WINDOW_MINUTES = 43_200;
 
 const poolName = z.string().min(1).max(128).describe('Pool name, e.g. "premium-buyers"');
 const leaseId = z
@@ -297,6 +308,44 @@ export function createTestLeaseMcpServer(options: TestLeaseMcpOptions): McpServe
     },
   );
 
+  server.registerTool(
+    'testlease_diagnose',
+    {
+      title: 'Diagnose a flaky pool',
+      description:
+        'Explains pool-level causes of flaky tests over a recent window: how often and how long callers waited, immediate rejections (POOL_EXHAUSTED) vs wait timeouts, lease expiries (never heartbeated vs heartbeat stopped), quarantines, and how leases spread over resources.',
+      inputSchema: z.object({
+        pool: poolName,
+        windowMinutes: z
+          .number()
+          .int()
+          .min(1)
+          .max(DIAGNOSE_MAX_WINDOW_MINUTES)
+          .optional()
+          .describe(
+            `How far back to look, in minutes (1-${DIAGNOSE_MAX_WINDOW_MINUTES}, default ${DIAGNOSE_DEFAULT_WINDOW_MINUTES}).`,
+          ),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ pool, windowMinutes = DIAGNOSE_DEFAULT_WINDOW_MINUTES }) => {
+      try {
+        // The window is anchored on this process's clock; over stdio it may be skewed from the
+        // server's (see docs/mcp.md).
+        const startMs = Date.now() - windowMinutes * 60_000;
+        const limit = POOL_EVENTS_LIMIT.max;
+        const [{ events }, detail] = await Promise.all([
+          api.listPoolEvents(pool, { sinceMs: startMs, limit }),
+          api.getPool(pool),
+        ]);
+        const diagnosis = toMcpPoolDiagnosis(events, detail, { startMs, limit, windowMinutes });
+        return ok(diagnosis, formatDiagnosis(diagnosis));
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
   if (options.allowQuarantine) {
     server.registerTool(
       'testlease_quarantine',
@@ -433,4 +482,35 @@ function formatLease(l: McpLease): string {
 
 function formatAcquire(r: McpAcquireResult): string {
   return `${r.reused ? 'Existing lease returned' : 'Acquired'} ${r.resourceId} in ${r.pool} as lease ${r.leaseId}${r.waitedSeconds ? ` after waiting ${r.waitedSeconds}s` : ''}. Expires ${r.expiresAt} (TTL ${r.ttlSeconds}s); renew with testlease_renew if the work takes longer, release with testlease_release when done. Metadata: ${JSON.stringify(r.metadata)}. Secret names (values only via an authorized runner): ${r.availableSecretKeys.join(', ') || 'none'}.`;
+}
+
+function formatDiagnosis(d: McpPoolDiagnosis): string {
+  const ms = (p: McpPercentiles | null) =>
+    p ? ` (p50 ${p.p50}ms, p95 ${p.p95}ms, max ${p.max}ms)` : '';
+  const pct = d.contention.ratio === null ? 'n/a' : `${Math.round(d.contention.ratio * 100)}%`;
+  const { expiries: x, quarantine: q } = d;
+  const lines = [
+    `${d.pool}, last ${d.meta.windowMinutes} min since ${d.meta.windowStart}:`,
+    `  acquired ${d.waiting.acquired}, ${d.waiting.waited} after waiting${ms(d.waiting.waitedMs)}; ${d.waiting.currentWaiters} waiting now`,
+    `  rejected immediately (pool exhausted): ${d.poolExhausted.count}; wait timeouts: ${d.acquireTimeouts.count}${ms(d.acquireTimeouts.waitedMs)}`,
+    `  expiries: ${x.count} (${x.noHeartbeatEver} never heartbeated, ${x.heartbeatStopped} heartbeat stopped${x.maxOverdueMs === null ? '' : `, max overdue ${x.maxOverdueMs}ms`})`,
+  ];
+  if (x.topResources.length)
+    lines.push(
+      `    by resource: ${x.topResources.map((r) => `${r.resourceId}=${r.count}`).join(', ')}`,
+      `    by owner: ${x.topOwners.map((o) => `${o.owner}=${o.count}`).join(', ')}`,
+    );
+  lines.push(
+    `  quarantined ${q.quarantined}, restored ${q.restored}${q.reasons.length ? ` (${q.reasons.map((r) => `${r.reason}: ${r.count}`).join('; ')})` : ''}`,
+  );
+  if (q.current.length)
+    lines.push(
+      `    quarantined now: ${q.current.map((r) => `${r.resourceId} (${r.reason})`).join(', ')}`,
+    );
+  lines.push(
+    `  contention: ${d.contention.waitedOrRejected}/${d.contention.attempts} attempts waited or were rejected (${pct})`,
+    `    leases per resource: ${d.contention.leasesPerResource.map((r) => `${r.resourceId}=${r.count}`).join(', ') || 'none'}`,
+    ...d.meta.notes.map((n) => `  note: ${n}`),
+  );
+  return lines.join('\n');
 }
