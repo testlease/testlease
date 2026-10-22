@@ -40,6 +40,7 @@ async function agentWorkflow(
   const names = tools.tools.map((t) => t.name).sort();
   expect(names).toEqual([
     'testlease_acquire',
+    'testlease_diagnose',
     'testlease_get_lease',
     'testlease_lease_events',
     'testlease_list_pools',
@@ -55,6 +56,7 @@ async function agentWorkflow(
       'testlease_pool_status',
       'testlease_get_lease',
       'testlease_lease_events',
+      'testlease_diagnose',
     ].includes(t.name);
     expect(t.annotations?.readOnlyHint, t.name).toBe(readOnly);
     expect(t.annotations?.destructiveHint ?? false, t.name).toBe(false);
