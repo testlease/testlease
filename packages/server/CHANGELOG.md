@@ -1,5 +1,25 @@
 # @testlease/server
 
+## 0.3.0
+
+### Minor Changes
+
+- 50d98d8: Add pool-scoped event history: `TestLeaseApi.listPoolEvents(pool, { sinceMs, limit })`, served by
+  `GET /v1/pools/:pool/events?since=&limit=` (scope `pool:read`, pool allow-lists apply) and
+  `TestLeaseClient.listPoolEvents`. Events are returned newest first; `since` is inclusive, `limit`
+  defaults to 1000 and values above 5000 are capped. Unlike resource history, this includes
+  `ACQUIRE_TIMEOUT` events, which have no resource. Custom implementations of `TestLeaseApi` must
+  add the new method.
+
+### Patch Changes
+
+- Updated dependencies [50d98d8]
+- Updated dependencies [8088e63]
+- Updated dependencies [1ae3da1]
+  - @testlease/protocol@0.3.0
+  - @testlease/core@0.3.0
+  - @testlease/mcp@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

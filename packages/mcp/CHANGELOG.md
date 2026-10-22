@@ -1,5 +1,20 @@
 # @testlease/mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- 8088e63: Add the read-only `testlease_diagnose` tool: `{ pool, windowMinutes? }` (default 1440, max 43200)
+  summarises why tests on a pool are flaky — waits and their percentiles, immediate rejections vs
+  wait timeouts, expiries (never heartbeated vs heartbeat stopped), quarantines and contention. The
+  output is an allow-list projection (`toMcpPoolDiagnosis`) with no secrets, secret references or
+  request fields. Existing tools are unchanged.
+
+### Patch Changes
+
+- Updated dependencies [50d98d8]
+  - @testlease/protocol@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes
