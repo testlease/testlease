@@ -14,6 +14,7 @@ import {
   type HealthResponse,
   type LeaseView,
   type PoolDetail,
+  type PoolEventsQuery,
   type PoolsResponse,
   type PoolSummary,
   type QuarantineRequest,
@@ -163,6 +164,24 @@ export class TestLeaseClient implements TestLeaseApi, SecretsApi, AdminApi {
     return this.http.request({
       method: 'GET',
       path: `/v1/resources/${enc(resourceId)}/events`,
+      signal: opts?.signal,
+      retry: true,
+    });
+  }
+
+  /** A pool's event history, newest first. Invalid values are left for the server to reject. */
+  listPoolEvents(
+    pool: string,
+    query: PoolEventsQuery = {},
+    opts?: CallOptions,
+  ): Promise<EventsResponse> {
+    const params = new URLSearchParams();
+    if (query.sinceMs !== undefined) params.set('since', String(query.sinceMs));
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    const qs = params.toString();
+    return this.http.request({
+      method: 'GET',
+      path: `/v1/pools/${enc(pool)}/events${qs ? `?${qs}` : ''}`,
       signal: opts?.signal,
       retry: true,
     });

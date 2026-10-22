@@ -239,6 +239,16 @@ export interface EventsResponse {
   events: LeaseEvent[];
 }
 
+/** Page size of pool event history: used when `limit` is omitted, and the cap for larger values. */
+export const POOL_EVENTS_LIMIT = { default: 1000, max: 5000 } as const;
+
+export interface PoolEventsQuery {
+  /** Inclusive lower bound on `at` (epoch ms). Omitted = no lower bound. */
+  sinceMs?: number;
+  /** Positive integer; default `POOL_EVENTS_LIMIT.default`, values above `POOL_EVENTS_LIMIT.max` are capped. */
+  limit?: number;
+}
+
 export type AuthMode = 'insecure-local' | 'token';
 
 export interface HealthResponse {

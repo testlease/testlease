@@ -11,25 +11,26 @@ Switch on `error.code`; HTTP status codes are a transport detail (400/401/403/40
 
 ## Endpoints
 
-| Method & path                                                 | Scope                                      | Purpose                                                                      |
-| ------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| `GET /healthz`                                                | none                                       | `{status, version, uptimeMs, now, db.schemaVersion, auth.mode, mcp.http}`    |
-| `GET /v1/whoami`                                              | any                                        | `{auth, principal, scopes}`                                                  |
-| `GET /v1/pools`                                               | `pool:read`                                | `{pools: PoolSummary[]}`                                                     |
-| `GET /v1/pools/:pool`                                         | `pool:read`                                | `PoolDetail` (resources with state/owner/expiry, waiters)                    |
-| `GET /v1/resources/:id`                                       | `pool:read`                                | `ResourceView` (current configuration and state)                             |
-| `GET /v1/resources/:id/events`                                | `pool:read`                                | `{events}`                                                                   |
-| `POST /v1/resources/:id/quarantine`                           | `resource:admin`                           | body `{reason, force?}`                                                      |
-| `POST /v1/resources/:id/restore`                              | `resource:admin`                           | `{resource}`                                                                 |
-| `POST /v1/leases/acquire`                                     | `lease:write`                              | body `AcquireRequest` → `AcquireResponse` (long-polls up to `waitTimeoutMs`) |
-| `GET /v1/leases/:id`                                          | `lease:read`                               | `LeaseView`                                                                  |
-| `GET /v1/leases/:id/events`                                   | `lease:read`                               | `{events}`                                                                   |
-| `POST /v1/leases/:id/renew`                                   | `lease:write`                              | body `{owner, ttlMs?}` → `{lease}`                                           |
-| `POST /v1/leases/:id/release` (alias `DELETE /v1/leases/:id`) | `lease:write` (+`lease:admin` for `force`) | body `{owner, force?}` → `{lease, outcome}`                                  |
-| `POST /v1/leases/:id/quarantine`                              | `lease:write` (+`lease:admin` for `force`) | body `{owner, reason, force?}` → `{lease, resource}`                         |
-| `POST /v1/leases/:id/secrets`                                 | `secrets:resolve`                          | body `{owner}` → `{leaseId, resourceId, secrets}` — values, caller only      |
-| `GET /v1/events?limit=100`                                    | `lease:read`                               | most recent events server-wide                                               |
-| `ALL /mcp`                                                    | token                                      | MCP Streamable HTTP (see `docs/mcp.md`)                                      |
+| Method & path                                                 | Scope                                      | Purpose                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `GET /healthz`                                                | none                                       | `{status, version, uptimeMs, now, db.schemaVersion, auth.mode, mcp.http}`     |
+| `GET /v1/whoami`                                              | any                                        | `{auth, principal, scopes}`                                                   |
+| `GET /v1/pools`                                               | `pool:read`                                | `{pools: PoolSummary[]}`                                                      |
+| `GET /v1/pools/:pool`                                         | `pool:read`                                | `PoolDetail` (resources with state/owner/expiry, waiters)                     |
+| `GET /v1/resources/:id`                                       | `pool:read`                                | `ResourceView` (current configuration and state)                              |
+| `GET /v1/resources/:id/events`                                | `pool:read`                                | `{events}`                                                                    |
+| `GET /v1/pools/:pool/events?since=&limit=`                    | `pool:read`                                | `{events}` newest first; `since` inclusive; `limit` 1000 default, capped 5000 |
+| `POST /v1/resources/:id/quarantine`                           | `resource:admin`                           | body `{reason, force?}`                                                       |
+| `POST /v1/resources/:id/restore`                              | `resource:admin`                           | `{resource}`                                                                  |
+| `POST /v1/leases/acquire`                                     | `lease:write`                              | body `AcquireRequest` → `AcquireResponse` (long-polls up to `waitTimeoutMs`)  |
+| `GET /v1/leases/:id`                                          | `lease:read`                               | `LeaseView`                                                                   |
+| `GET /v1/leases/:id/events`                                   | `lease:read`                               | `{events}`                                                                    |
+| `POST /v1/leases/:id/renew`                                   | `lease:write`                              | body `{owner, ttlMs?}` → `{lease}`                                            |
+| `POST /v1/leases/:id/release` (alias `DELETE /v1/leases/:id`) | `lease:write` (+`lease:admin` for `force`) | body `{owner, force?}` → `{lease, outcome}`                                   |
+| `POST /v1/leases/:id/quarantine`                              | `lease:write` (+`lease:admin` for `force`) | body `{owner, reason, force?}` → `{lease, resource}`                          |
+| `POST /v1/leases/:id/secrets`                                 | `secrets:resolve`                          | body `{owner}` → `{leaseId, resourceId, secrets}` — values, caller only       |
+| `GET /v1/events?limit=100`                                    | `lease:read`                               | most recent events server-wide                                                |
+| `ALL /mcp`                                                    | token                                      | MCP Streamable HTTP (see `docs/mcp.md`)                                       |
 
 ## AcquireRequest
 
@@ -127,6 +128,10 @@ is idempotent.
 Since v0.2 heartbeats increment `renewCount` on the lease instead of producing `LEASE_RENEWED`
 events (unless the TTL changes or `history.recordRenewals` is on); events and ended leases older
 than `history.retention` are pruned.
+
+`GET /v1/pools/:pool/events` returns `POOL_NOT_FOUND` for a pool that is no longer in the
+configuration, even though its events are kept until pruned; resource history stays readable via
+`GET /v1/resources/:id/events`.
 
 ## Client retry semantics
 

@@ -65,14 +65,14 @@ Client-side: `TESTLEASE_URL`, `TESTLEASE_TOKEN`, `TESTLEASE_OWNER`, `TESTLEASE_R
 
 ## Scopes
 
-| Scope             | Allows                                                 |
-| ----------------- | ------------------------------------------------------ |
-| `pool:read`       | list/inspect pools and resources, resource events      |
-| `lease:read`      | read leases, lease events, recent events               |
-| `lease:write`     | acquire, renew, release, quarantine (own leases)       |
-| `lease:admin`     | `force` on release/quarantine (acts on others' leases) |
-| `resource:admin`  | quarantine/restore resources directly                  |
-| `secrets:resolve` | `POST /v1/leases/:id/secrets` for own active leases    |
+| Scope             | Allows                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `pool:read`       | list/inspect pools and resources, resource and pool events (incl. lease ids, owners) |
+| `lease:read`      | read leases, lease events, recent events                                             |
+| `lease:write`     | acquire, renew, release, quarantine (own leases)                                     |
+| `lease:admin`     | `force` on release/quarantine (acts on others' leases)                               |
+| `resource:admin`  | quarantine/restore resources directly                                                |
+| `secrets:resolve` | `POST /v1/leases/:id/secrets` for own active leases                                  |
 
 Default scopes when omitted: `lease:read, lease:write, pool:read`.
 

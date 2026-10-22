@@ -8,6 +8,7 @@ import type {
   ListLeasesQuery,
   ListLeasesResponse,
   PoolDetail,
+  PoolEventsQuery,
   PoolSummary,
   QuarantineRequest,
   QuarantineResponse,
@@ -49,6 +50,12 @@ export interface TestLeaseApi {
   restoreResource(resourceId: string, opts?: CallOptions): Promise<RestoreResponse>;
   listLeaseEvents(leaseId: string, opts?: CallOptions): Promise<EventsResponse>;
   listResourceEvents(resourceId: string, opts?: CallOptions): Promise<EventsResponse>;
+  /** A pool's event history, newest first (`at` DESC, then `seq` DESC). */
+  listPoolEvents(
+    pool: string,
+    query?: PoolEventsQuery,
+    opts?: CallOptions,
+  ): Promise<EventsResponse>;
   /** Lists leases (newest first). Not exposed to MCP identities by design. */
   listLeases(query?: ListLeasesQuery, opts?: CallOptions): Promise<ListLeasesResponse>;
 }

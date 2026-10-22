@@ -4,11 +4,13 @@ import { bodyLimit } from 'hono/body-limit';
 import type { HttpBindings } from '@hono/node-server';
 import {
   ErrorCodes,
+  POOL_EVENTS_LIMIT,
   TestLeaseError,
   type AcquireRequest,
   type EventsResponse,
   type LeaseState,
   type ListLeasesQuery,
+  type PoolEventsQuery,
   type PoolsResponse,
   type QuarantineRequest,
   type QuarantineResourceRequest,
@@ -193,6 +195,34 @@ export function createApp(options: CreateAppOptions): TestLeaseApp {
   app.get('/v1/resources/:resourceId/events', async (c) => {
     const body: EventsResponse = await scoped(c, 'pool:read').listResourceEvents(
       param(c, 'resourceId'),
+    );
+    return c.json(body);
+  });
+  app.get('/v1/pools/:pool/events', async (c) => {
+    const query: PoolEventsQuery = {};
+    for (const [name, key] of [
+      ['since', 'sinceMs'],
+      ['limit', 'limit'],
+    ] as const) {
+      const raw = c.req.query(name);
+      if (raw === undefined) continue;
+      // Digits only; an oversized limit is capped like any other limit above the maximum.
+      const value = /^\d+$/.test(raw)
+        ? name === 'limit'
+          ? Math.min(Number(raw), POOL_EVENTS_LIMIT.max)
+          : Number(raw)
+        : NaN;
+      if (!Number.isSafeInteger(value)) {
+        throw new TestLeaseError(
+          ErrorCodes.INVALID_REQUEST,
+          `${name} must be a non-negative integer; got "${raw}".`,
+        );
+      }
+      query[key] = value;
+    }
+    const body: EventsResponse = await scoped(c, 'pool:read').listPoolEvents(
+      param(c, 'pool'),
+      query,
     );
     return c.json(body);
   });

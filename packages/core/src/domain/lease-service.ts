@@ -1,5 +1,6 @@
 import {
   ErrorCodes,
+  POOL_EVENTS_LIMIT,
   TestLeaseError,
   type AcquireRequest,
   type AcquireResponse,
@@ -7,6 +8,7 @@ import {
   type LeaseView,
   type ListLeasesQuery,
   type PoolDetail,
+  type PoolEventsQuery,
   type PoolSummary,
   type QuarantineRequest,
   type QuarantineResourceRequest,
@@ -30,6 +32,7 @@ import {
   acquireRequestSchema,
   idSchema,
   ownerSchema,
+  poolEventsQuerySchema,
   principalSchema,
   quarantineRequestSchema,
   quarantineResourceRequestSchema,
@@ -288,6 +291,21 @@ export class LeaseService {
       );
     }
     return this.store.eventsByResource(resourceId, limit).map(toEventView);
+  }
+
+  /** A pool's event history, newest first. `limit` above `POOL_EVENTS_LIMIT.max` is capped. */
+  listPoolEvents(name: string, query: PoolEventsQuery = {}): LeaseEvent[] {
+    const pool = validate(idSchema, name, 'pool');
+    const { sinceMs, limit } = validate(poolEventsQuerySchema, query, 'pool events query');
+    const row = this.store.getPool(pool);
+    if (!row || !row.present) throw this.poolNotFound(pool);
+    return this.store
+      .eventsByPool(
+        pool,
+        sinceMs ?? 0,
+        Math.min(limit ?? POOL_EVENTS_LIMIT.default, POOL_EVENTS_LIMIT.max),
+      )
+      .map(toEventView);
   }
 
   listRecentEvents(limit = 100): LeaseEvent[] {

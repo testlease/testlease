@@ -13,6 +13,7 @@ import {
   type ListLeasesQuery,
   type ListLeasesResponse,
   type PoolDetail,
+  type PoolEventsQuery,
   type PoolSummary,
   type QuarantineRequest,
   type QuarantineResponse,
@@ -205,6 +206,11 @@ export class LocalTestLeaseApi implements TestLeaseApi, SecretsApi, AdminApi {
   async listResourceEvents(resourceId: string): Promise<EventsResponse> {
     this.resourcePool(resourceId);
     return { events: this.service.listResourceEvents(resourceId) };
+  }
+
+  async listPoolEvents(pool: string, query: PoolEventsQuery = {}): Promise<EventsResponse> {
+    this.assertPool(pool);
+    return { events: this.service.listPoolEvents(pool, query) };
   }
 
   /** Resolves secret references for an active lease. Requires ownership; values are never logged. */
