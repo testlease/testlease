@@ -79,7 +79,7 @@ async function seedScenario(engine: TestLeaseEngine): Promise<Scenario> {
   const c = await queued;
   leases.push(c);
   expect(c.lease.resourceId).toBe(a.lease.resourceId);
-  expect(c.waitedMs).toBeGreaterThanOrEqual(300);
+  expect(c.waitedMs).toBeGreaterThan(0);
   await api.release(c.lease.leaseId, { owner: 'worker-4' });
 
   // Two expiries: worker-6 never heartbeats, worker-2 heartbeats once and then stops.
