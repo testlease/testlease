@@ -1,0 +1,15 @@
+{
+  "name": "@testlease/example-agents",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Two agents share a pool of API keys over MCP; a delegated runner uses the keys without the agents ever seeing them",
+  "scripts": {
+    "demo": "node scripts/run-demo.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@testlease/client": "workspace:*",
+    "testlease": "workspace:*"
+  }
+}

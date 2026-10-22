@@ -1,7 +1,8 @@
 # MCP guide
 
 TestLease speaks the Model Context Protocol (spec 2026-07-28, official TypeScript SDK v2) so an
-agent can coordinate shared test resources the same way a CI worker does.
+agent can coordinate scarce shared resources (API keys, accounts, browser profiles, devices) the
+same way a CI worker does.
 
 ## Transports
 
@@ -87,11 +88,46 @@ over both transports and scans every response for the configured secret values a
 
 1. `testlease_pool_status` to see capacity.
 2. `testlease_acquire` with a `purpose` and, for retries, a `clientRequestId`.
-3. Run the work (a runner with its own `secrets:resolve` token resolves credentials, e.g.
-   `testlease exec --lease <id> -- npm test`).
+3. Run the work. A runner resolves credentials with its own token, which needs
+   `secrets:resolve` and `delegateFor: [<agent token>]` (see below), e.g.
+   `testlease exec --lease <id> -- npm test`.
 4. `testlease_renew` if the work outlives the TTL.
 5. `testlease_release`. If the agent forgets or crashes, the TTL reclaims the resource; closing
    an MCP session never releases leases (an already-launched test may still be using them).
+
+## Agent and runner tokens
+
+The agent's token acquires; a separate runner token uses the lease. Without `delegateFor` the
+runner is refused with `LEASE_OWNERSHIP_MISMATCH`, because a lease belongs to the token that
+acquired it (ADR-0003, ADR-0016).
+
+```yaml
+auth:
+  tokens:
+    - name: agent # for the MCP server; no secrets:resolve
+      token: env:TESTLEASE_TOKEN_AGENT
+      scopes: [lease:read, lease:write, pool:read]
+    - name: runner # for the process that runs the work
+      token: env:TESTLEASE_TOKEN_RUNNER
+      scopes: [lease:read, lease:write, pool:read, secrets:resolve]
+      delegateFor: [agent] # may resolve secrets, renew and release the agent's leases
+```
+
+```bash
+# agent host: MCP server with the agent token
+TESTLEASE_TOKEN=$TESTLEASE_TOKEN_AGENT TESTLEASE_OWNER=agent:triage-bot/issue-1432 \
+  testlease mcp --url http://127.0.0.1:4747
+
+# runner: uses the lease the agent acquired, with its own token
+TESTLEASE_TOKEN=$TESTLEASE_TOKEN_RUNNER testlease exec --lease <leaseId> -- npm test
+```
+
+Events written by the runner carry `principal: runner` and `onBehalfOf: agent`. Delegation does
+not grant quarantine or `force` and is not transitive.
+
+**Do not give the runner token to an agent that has a shell.** With it the agent can run
+`testlease exec --lease <id> -- env` and read every secret of the lease; redaction does not stop
+that ([exec.md](exec.md)). See [agents.md](agents.md) and [examples/agents](../examples/agents).
 
 ## Safety defaults
 

@@ -1,7 +1,7 @@
 {
   "name": "testlease",
   "version": "0.3.0",
-  "description": "Stop parallel tests from fighting over shared test accounts and environments. Server + CLI for TestLease.",
+  "description": "AI agents and parallel workers share scarce resources: test accounts, API keys, browser profiles, devices. Server + CLI for TestLease.",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
