@@ -29,7 +29,7 @@ export async function mountMcp(
       if (!auth) return null;
       return {
         principal: auth.principal,
-        api: engine.api.as(auth.principal, { pools: auth.pools }),
+        api: engine.api.as(auth.principal, { pools: auth.pools, delegateFor: auth.delegateFor }),
       };
     },
     log: (level, obj, msg) => logger[level](obj, msg),

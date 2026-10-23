@@ -72,6 +72,11 @@ export const tokenConfigSchema = z.strictObject({
   scopes: z.array(z.enum(Scopes)).default(['lease:read', 'lease:write', 'pool:read']),
   /** Restrict this token to these pools (leases, resources and events of other pools are forbidden). */
   pools: z.array(identifier).min(1).optional(),
+  /**
+   * Principals (token names) this token may act for on their leases: resolve secrets, renew and
+   * release, with the lease owner. Lets a runner use a lease an agent acquired (ADR-0016).
+   */
+  delegateFor: z.array(identifier).min(1).optional(),
 });
 
 export const historyConfigSchema = z.strictObject({

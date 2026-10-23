@@ -57,7 +57,11 @@ export const LOCAL_PRINCIPAL = 'local';
 /** The authenticated identity performing an operation. Derived by the server, never by clients. */
 export interface Actor {
   principal: string;
+  /** Principals whose leases this actor may resolve, renew and release (ADR-0016). */
+  delegateFor?: ReadonlySet<string>;
 }
+
+const NO_DELEGATION: ReadonlySet<string> = new Set();
 
 export interface LeaseServiceOptions {
   store: SqliteStore;
@@ -573,7 +577,14 @@ export class LeaseService {
         for (const e of this.expireDueInTx(now)) touched.push(e.pool);
         const lease = this.requireLease(leaseId);
         this.assertActive(lease, 'renew');
-        this.assertOwnership(lease, req.owner, principal, false, 'renew');
+        const onBehalfOf = this.assertOwnership(
+          lease,
+          req.owner,
+          principal,
+          false,
+          'renew',
+          actor.delegateFor ?? NO_DELEGATION,
+        );
         const pool = this.store.getPool(lease.pool);
         const ttlMs = req.ttlMs ?? lease.ttlMs;
         if (pool && ttlMs > pool.maxTtlMs) {
@@ -599,6 +610,7 @@ export class LeaseService {
               expiresAt,
               ttlMs,
               renewCount: lease.renewCount + 1,
+              ...(onBehalfOf ? { principal, onBehalfOf } : {}),
             },
           });
         }
@@ -643,11 +655,19 @@ export class LeaseService {
           return { lease: toLeaseView(lease), outcome: 'already_released' as const };
         if (lease.state === 'EXPIRED')
           return { lease: toLeaseView(lease), outcome: 'already_expired' as const };
-        this.assertOwnership(lease, req.owner, principal, req.force === true, 'release');
+        const onBehalfOf = this.assertOwnership(
+          lease,
+          req.owner,
+          principal,
+          req.force === true,
+          'release',
+          actor.delegateFor ?? NO_DELEGATION,
+        );
         this.endActiveLease(lease, 'RELEASED', req.force ? 'FORCE_RELEASED' : 'RELEASED', now, {
           heldMs: now - lease.createdAt,
           by: req.owner,
           principal,
+          ...(onBehalfOf ? { onBehalfOf } : {}),
           ...(req.force ? { force: true } : {}),
         });
         touched.push(lease.pool);
@@ -690,7 +710,7 @@ export class LeaseService {
         for (const e of this.expireDueInTx(now)) touched.push(e.pool);
         const lease = this.requireLease(leaseId);
         this.assertActive(lease, 'quarantine');
-        this.assertOwnership(lease, req.owner, principal, req.force === true, 'quarantine');
+        this.assertOwnership(lease, req.owner, principal, req.force === true, 'quarantine', null);
         this.store.endLease(lease.id, 'RELEASED', 'QUARANTINED', now);
         this.store.insertEvent({
           at: now,
@@ -867,7 +887,14 @@ export class LeaseService {
         for (const e of this.expireDueInTx(now)) touched.push(e.pool);
         const lease = this.requireLease(leaseId);
         this.assertActive(lease, 'resolve secrets for');
-        this.assertOwnership(lease, owner, principal, false, 'resolve secrets for');
+        const onBehalfOf = this.assertOwnership(
+          lease,
+          owner,
+          principal,
+          false,
+          'resolve secrets for',
+          actor.delegateFor ?? NO_DELEGATION,
+        );
         // Secret references come from the lease's frozen snapshot, not from the live resource,
         // so a rotated reference in configuration does not change a running test's credentials.
         this.store.insertEvent({
@@ -877,7 +904,11 @@ export class LeaseService {
           resourceId: lease.resourceId,
           leaseId: lease.id,
           owner,
-          details: { secretKeys: Object.keys(lease.snapshot.secretRefs).sort(), principal },
+          details: {
+            secretKeys: Object.keys(lease.snapshot.secretRefs).sort(),
+            principal,
+            ...(onBehalfOf ? { onBehalfOf } : {}),
+          },
         });
         return { lease: toLeaseView(lease), refs: { ...lease.snapshot.secretRefs } };
       });
@@ -1147,7 +1178,10 @@ export class LeaseService {
 
   /**
    * Ownership = authenticated principal AND logical owner. `force` (admin) bypasses both;
-   * the server only passes force=true for callers holding `lease:admin`.
+   * the server only passes force=true for callers holding `lease:admin`. A delegate of the lease
+   * principal passes the principal check (never the owner check) for actions that pass a
+   * `delegateFor` set; `null` means the action does not accept delegation. Returns the lease
+   * principal when the caller acted as its delegate.
    */
   private assertOwnership(
     lease: LeaseRow,
@@ -1155,8 +1189,9 @@ export class LeaseService {
     principal: string,
     force: boolean,
     action: string,
-  ): void {
-    if (force) return;
+    delegateFor: ReadonlySet<string> | null,
+  ): string | undefined {
+    if (force) return undefined;
     if (lease.owner !== owner) {
       throw new TestLeaseError(
         ErrorCodes.LEASE_OWNERSHIP_MISMATCH,
@@ -1164,18 +1199,21 @@ export class LeaseService {
         { leaseId: lease.id, mismatch: 'owner', leaseOwner: lease.owner, presentedOwner: owner },
       );
     }
-    if (lease.principal !== principal) {
-      throw new TestLeaseError(
-        ErrorCodes.LEASE_OWNERSHIP_MISMATCH,
-        `Cannot ${action} lease ${lease.id}: it was acquired by principal "${lease.principal}", not "${principal}". Use the same API token, or the lease:admin scope with force.`,
-        {
-          leaseId: lease.id,
-          mismatch: 'principal',
-          leasePrincipal: lease.principal,
-          presentedPrincipal: principal,
-        },
-      );
-    }
+    if (lease.principal === principal) return undefined;
+    if (delegateFor?.has(lease.principal)) return lease.principal;
+    const alternatives = delegateFor
+      ? `a token with delegateFor: [${lease.principal}], or the lease:admin scope with force`
+      : 'or the lease:admin scope with force';
+    throw new TestLeaseError(
+      ErrorCodes.LEASE_OWNERSHIP_MISMATCH,
+      `Cannot ${action} lease ${lease.id}: it was acquired by principal "${lease.principal}", not "${principal}". Use the same API token, ${alternatives}.`,
+      {
+        leaseId: lease.id,
+        mismatch: 'principal',
+        leasePrincipal: lease.principal,
+        presentedPrincipal: principal,
+      },
+    );
   }
 
   private assertNotStopped(): void {

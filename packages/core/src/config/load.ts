@@ -86,6 +86,26 @@ export function validateConfig(raw: unknown, source = '<inline>'): LoadedConfig 
     }
   }
 
+  const delegating = new Set(
+    parsed.data.auth.tokens.filter((t) => t.delegateFor).map((t) => t.name),
+  );
+  for (const token of parsed.data.auth.tokens) {
+    for (const target of token.delegateFor ?? []) {
+      const at = `auth.tokens[${token.name}].delegateFor`;
+      if (target === token.name) {
+        problems.push(`${at}: a token cannot delegate for itself; remove "${target}"`);
+      } else if (!tokenNames.has(target)) {
+        problems.push(
+          `${at}: "${target}" is not a configured token; add it to auth.tokens or remove it`,
+        );
+      } else if (delegating.has(target)) {
+        problems.push(
+          `${at}: "${target}" delegates for other tokens itself, and delegation is not transitive; list the principals directly`,
+        );
+      }
+    }
+  }
+
   if (problems.length) {
     throw new ConfigError(`Invalid configuration in ${source}`, problems);
   }
