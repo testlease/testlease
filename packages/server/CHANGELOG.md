@@ -1,5 +1,20 @@
 # @testlease/server
 
+## 0.4.0
+
+### Minor Changes
+
+- 4181f10: Add token delegation: `auth.tokens[].delegateFor` lets a runner token resolve secrets, renew and release leases acquired by the listed tokens, so an agent can acquire over MCP without `secrets:resolve` and a runner can use the lease with `testlease exec --lease <id>`. The owner must still match; quarantine and `force` are not delegated. Delegated events record `onBehalfOf`. See ADR-0016.
+
+### Patch Changes
+
+- a86b1b6: Position TestLease for AI agents as well as parallel test workers: updated package descriptions, CLI help, OpenAPI description and MCP server instructions (the MCP instructions now tell agents to hand the lease to a delegated runner). No tool, metric or environment variable names change. New `docs/agents.md` and `examples/agents`.
+- Updated dependencies [a86b1b6]
+- Updated dependencies [4181f10]
+  - @testlease/mcp@0.4.0
+  - @testlease/core@0.4.0
+  - @testlease/protocol@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

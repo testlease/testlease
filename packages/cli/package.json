@@ -1,6 +1,6 @@
 {
   "name": "testlease",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "AI agents and parallel workers share scarce resources: test accounts, API keys, browser profiles, devices. Server + CLI for TestLease.",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,5 +1,12 @@
 # @testlease/client
 
+## 0.4.0
+
+### Patch Changes
+
+- a86b1b6: Position TestLease for AI agents as well as parallel test workers: updated package descriptions, CLI help, OpenAPI description and MCP server instructions (the MCP instructions now tell agents to hand the lease to a delegated runner). No tool, metric or environment variable names change. New `docs/agents.md` and `examples/agents`.
+- @testlease/protocol@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

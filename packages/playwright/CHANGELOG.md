@@ -1,5 +1,13 @@
 # @testlease/playwright
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [a86b1b6]
+  - @testlease/client@0.4.0
+  - @testlease/protocol@0.4.0
+
 ## 0.3.0
 
 ### Patch Changes
