@@ -33,14 +33,14 @@
     "@changesets/cli": "3.0.3",
     "@eslint/js": "10.0.1",
     "@types/node": "22.20.2",
-    "@vitest/coverage-v8": "5.0.1",
-    "eslint": "10.10.0",
+    "@vitest/coverage-v8": "5.0.5",
+    "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
-    "prettier": "3.9.6",
+    "prettier": "3.9.10",
     "rimraf": "6.1.2",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.70.0",
-    "vitest": "5.0.1"
+    "typescript": "7.0.2",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
   },
   "pnpm": {
     "ignoredBuiltDependencies": [
