@@ -27,7 +27,7 @@ export function buildProgram(io: CliIo): { program: Command; getCtx: () => CliCo
   program
     .name('testlease')
     .description(
-      'Exclusive, expiring leases for shared test resources.\n\nShared test resources are infrastructure. Treat them like infrastructure.',
+      'Exclusive, expiring leases on scarce resources shared by AI agents and parallel test workers.\n\nShared resources are infrastructure. Treat them like infrastructure.',
     )
     .version(CLI_VERSION)
     .option('-u, --url <url>', 'server URL (default: $TESTLEASE_URL or http://127.0.0.1:4747)')

@@ -77,10 +77,10 @@ export function createTestLeaseMcpServer(options: TestLeaseMcpOptions): McpServe
     { name: MCP_SERVER_NAME, version: options.version ?? MCP_VERSION },
     {
       instructions: [
-        'TestLease hands out exclusive, expiring leases on shared test resources (accounts, tenants, devices).',
+        'TestLease hands out exclusive, expiring leases on scarce shared resources (test accounts, API keys, browser profiles, devices, tenants).',
         'Workflow: testlease_pool_status -> testlease_acquire -> run the work -> testlease_release.',
         'Leases expire after their TTL unless renewed with testlease_renew; a crashed process therefore never blocks a resource forever.',
-        'You receive resource metadata and the *names* of secrets, never secret values; test runners resolve secrets themselves with an authorized token.',
+        'You receive resource metadata and the *names* of secrets, never secret values; to use them, hand the leaseId to a runner, which resolves them on your behalf (for example `testlease exec --lease <leaseId> -- <command>`).',
         `Leases you acquire are owned by "${owner}"; you can only renew or release your own leases.`,
       ].join(' '),
     },
@@ -313,7 +313,7 @@ export function createTestLeaseMcpServer(options: TestLeaseMcpOptions): McpServe
     {
       title: 'Diagnose a flaky pool',
       description:
-        'Explains pool-level causes of flaky tests over a recent window: how often and how long callers waited, immediate rejections (POOL_EXHAUSTED) vs wait timeouts, lease expiries (never heartbeated vs heartbeat stopped), quarantines, and how leases spread over resources.',
+        'Explains pool-level causes of flaky tests or stuck agents over a recent window: how often and how long callers waited, immediate rejections (POOL_EXHAUSTED) vs wait timeouts, lease expiries (never heartbeated vs heartbeat stopped), quarantines, and how leases spread over resources.',
       inputSchema: z.object({
         pool: poolName,
         windowMinutes: z

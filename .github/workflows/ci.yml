@@ -73,6 +73,8 @@ jobs:
       - run: pnpm build
       - run: pnpm test:integration
       - run: pnpm test:mcp
+      - name: Agent hand-off demo (2 agents, 1 key, delegated runner)
+        run: pnpm --filter @testlease/example-agents demo
 
   playwright:
     name: Playwright adapter (real workers)

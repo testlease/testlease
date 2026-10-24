@@ -1,0 +1,30 @@
+# One rate-limited API key shared by two agents. Agents acquire over MCP and never see the key;
+# a runner token resolves it on their behalf (delegateFor, ADR-0016).
+server:
+  host: 127.0.0.1
+  port: 4747
+  db: ./.testlease/agents.db
+
+auth:
+  tokens:
+    - name: agent-a
+      token: env:TESTLEASE_TOKEN_AGENT_A
+      scopes: [lease:read, lease:write, pool:read] # no secrets:resolve
+    - name: agent-b
+      token: env:TESTLEASE_TOKEN_AGENT_B
+      scopes: [lease:read, lease:write, pool:read]
+    - name: runner
+      token: env:TESTLEASE_TOKEN_RUNNER
+      scopes: [lease:read, lease:write, pool:read, secrets:resolve]
+      delegateFor: [agent-a, agent-b] # may resolve, renew and release the agents' leases
+
+pools:
+  api-keys:
+    description: Rate-limited LLM API keys; one agent per key at a time
+    defaultTtl: 2m # short: agents do not heartbeat reliably, the runner renews while it works
+    maxTtl: 15m
+    resources:
+      - id: llm-key-01
+        tags: { provider: example-llm, tier: standard }
+        metadata: { rateLimit: 60/min }
+        secrets: { apiKey: env:LLM_KEY_01 }

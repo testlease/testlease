@@ -21,6 +21,7 @@
     "@testlease/example-playwright",
     "@testlease/example-vanilla",
     "@testlease/example-mcp",
+    "@testlease/example-agents",
     "testlease-monorepo"
   ]
 }

@@ -2,7 +2,7 @@
   "name": "testlease-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "TestLease: exclusive, expiring leases for shared test resources",
+  "description": "TestLease: exclusive, expiring leases on scarce resources shared by AI agents and parallel test workers",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

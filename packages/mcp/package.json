@@ -1,7 +1,7 @@
 {
   "name": "@testlease/mcp",
   "version": "0.3.0",
-  "description": "Model Context Protocol server for TestLease (stdio and Streamable HTTP). Never exposes secret values.",
+  "description": "Model Context Protocol server for TestLease: agents lease scarce shared resources (API keys, accounts, devices) over stdio or Streamable HTTP. Never exposes secret values.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

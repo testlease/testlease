@@ -80,7 +80,10 @@ export function registerExecCommand(program: Command, getCtx: () => CliContext):
       'Acquire a lease (or attach to one), run a command with lease details and secrets in its environment, then release',
     )
     .option('--pool <pool>', 'acquire from this pool')
-    .option('--lease <lease-id>', 'use an existing lease you own instead of acquiring')
+    .option(
+      '--lease <lease-id>',
+      'use an existing lease (yours, or one your token is a delegate for) instead of acquiring',
+    )
     .option('-t, --tag <key=value...>', 'required tags (repeatable)')
     .option('--ttl <duration>', 'lease TTL (default: pool default)')
     .option('-w, --wait <duration>', 'how long to wait for a free resource (default: 0)')

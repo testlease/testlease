@@ -33,7 +33,7 @@ export const openapiDocument = {
     title: 'TestLease API',
     version: '1',
     description:
-      'Exclusive, expiring leases for shared test resources. Errors are `{ "error": { "code", "message", "details" } }`; switch on `code`.',
+      'Exclusive, expiring leases on scarce resources shared by AI agents and parallel test workers (test accounts, API keys, browser profiles, devices). Errors are `{ "error": { "code", "message", "details" } }`; switch on `code`.',
     license: { name: 'Apache-2.0' },
   },
   servers: [{ url: 'http://127.0.0.1:4747' }],
