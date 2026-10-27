@@ -9,7 +9,7 @@
     "http": "node http-agent.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "testlease": "workspace:*"
   }
 }
