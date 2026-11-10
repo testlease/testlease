@@ -8,7 +8,7 @@
     "demo": "node scripts/run-demo.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "@testlease/client": "workspace:*",
     "testlease": "workspace:*"
   }
