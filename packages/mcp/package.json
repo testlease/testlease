@@ -35,12 +35,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/server": "2.4.0",
     "@testlease/protocol": "workspace:*",
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "@testlease/core": "workspace:*",
     "@testlease/server": "workspace:*"
   }
